@@ -1,5 +1,8 @@
-from models.nmt_trans import Encoder, Decoder
+import torch
+import torch.nn as nn
 from transformers import BertModel
+from models.base import Encoder, Decoder, EncoderLayer, DecoderLayer
+
 
 
 class Encoder(nn.Module):
@@ -18,7 +21,6 @@ class Encoder(nn.Module):
 
 
 
-
 class Decoder(nn.Module):
     def __init__(self, config):
         super(Decoder, self).__init__()
@@ -34,12 +36,13 @@ class Decoder(nn.Module):
         return trg, attn
 
 
-class BertNMT(nn.Module):
-    def __init__(self, config):
-        super(BertNMT, self).__init__()
 
-        self.bert = BertModel.from_pretrained(config.pretrained)
-        self.bert.resize_token_embeddings(config.input_dim)
+class FusedModel(nn.Module):
+    def __init__(self, config):
+        super(FusedModel, self).__init__()
+
+        self.bert = BertModel.from_pretrained('bert-base-cased')
+        #self.bert.resize_token_embeddings(config.input_dim)
         self.embedding = self.bert.embeddings
 
         self.encoder = Encoder(config)

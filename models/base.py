@@ -2,46 +2,13 @@ import math, copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from transformers import BertModel
+
 
 
 def get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
 
-class TokenEmbedding(nn.Module):
-    def __init__(self, config):
-        super(TokenEmbedding, self).__init__()
-        self.embedding = nn.Embedding(config.input_dim, config.emb_dim)
-        scale = torch.sqrt(torch.FloatTensor([config.emb_dim])).to(config.device)
-        self.register_buffer('scale', scale)
-    
-    def forward(self, x):
-        return self.embedding(x) * self.scale
-
-
-class PosEncoding(nn.Module):
-    def __init__(self, config, max_len=512):
-        super(PosEncoding, self).__init__()
-        pe = torch.zeros(max_len, config.emb_dim)
-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, config.emb_dim, 2) * (-math.log(10000.0) / config.emb_dim))
-
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        self.register_buffer('pe', pe)
-
-    def forward(self, x):
-        return self.pe[:x.size(1), :].detach()
-
-
-class Embeddings(nn.Module):
-    def __init__(self, config):
-        super(Embeddings, self).__init__()
-        self.tok_emb = TokenEmbedding(config)
-        self.pos_enc = PosEncoding(config)
-        self.dropout = nn.Dropout(config.dropout_ratio)
-
-    def forward(self, x):
-        return self.dropout(self.tok_emb(x) + self.pos_enc(x))
 
 
 class MultiHeadAttn(nn.Module):
@@ -81,6 +48,7 @@ class MultiHeadAttn(nn.Module):
         return x.view(x.size(0), -1, self.n_heads, self.head_dim).permute(0, 2, 1, 3)
 
 
+
 class PositionwiseFFN(nn.Module):
     def __init__(self, config):
         super(PositionwiseFFN, self).__init__()
@@ -94,6 +62,7 @@ class PositionwiseFFN(nn.Module):
         return self.fc_2(out)
 
 
+
 class ResidualConn(nn.Module):
     def __init__(self, config):
         super(ResidualConn, self).__init__()
@@ -103,6 +72,7 @@ class ResidualConn(nn.Module):
     def forward(self, x, sublayer):
         out = x + sublayer(x)
         return self.dropout(self.layer_norm(out))
+
 
 
 class EncoderLayer(nn.Module):
@@ -116,6 +86,7 @@ class EncoderLayer(nn.Module):
         x = self.residual_conn[0](x, lambda x: self.self_attn(x, x, x, src_mask))
         x = self.residual_conn[1](x, self.pff)
         return x
+
 
 
 class DecoderLayer(nn.Module):
@@ -132,6 +103,7 @@ class DecoderLayer(nn.Module):
         return self.residual_conn[2](x, self.pff)
 
 
+
 class Encoder(nn.Module):
     def __init__(self, config):
         super(Encoder, self).__init__()
@@ -143,6 +115,7 @@ class Encoder(nn.Module):
         for layer in self.layers:
             src = layer(src, src_mask)
         return src
+
 
 
 class Decoder(nn.Module):
@@ -158,15 +131,15 @@ class Decoder(nn.Module):
         return trg
 
 
-class Transformer(nn.Module):
+
+class BaseModel(nn.Module):
     def __init__(self, config):
-        super(Transformer, self).__init__()
+        super(BaseModel, self).__init__()
         self.device = config.device
         self.pad_idx = config.pad_idx
         self.encoder = Encoder(config)
         self.decoder = Decoder(config)
         self.fc_out = nn.Linear(config.hidden_dim, config.output_dim)
-        self.apply(self._init_weights)
 
     def forward(self, src, trg):
         src_mask, trg_mask = self.pad_mask(src), self.dec_mask(trg)
@@ -182,6 +155,3 @@ class Transformer(nn.Module):
         sub_mask = torch.tril(torch.ones((x.size(-1), x.size(-1)))).bool().to(self.device)
         return pad_mask & sub_mask
 
-    def _init_weights(self, module):
-        if hasattr(module, 'weight') and module.weight.dim() > 1:
-            nn.init.xavier_uniform_(module.weight.data)

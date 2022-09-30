@@ -21,10 +21,7 @@ class NMTDataset(Dataset):
     
     def __getitem__(self, idx):
         src = self.data[idx]['src']
-        if self.model_name == 'transformer':
-            trg = self.data[idx]['trg'][:-1]
-        else:
-            trg = self.data[idx]['trg']
+        trg = self.data[idx]['trg'][:-1]
         return src, trg 
 
 
@@ -47,7 +44,7 @@ def rnn_collate(batch):
     return {'src': src_batch, 'trg': trg_batch}
 
 
-def transformer_collate(batch):
+def _collate_fn(batch):
     src_batch, trg_batch = [], []
     
     for src, trg in batch:
@@ -78,7 +75,7 @@ def load_dataloader(config, split):
         return DataLoader(dataset, 
                           batch_size=config.batch_size, 
                           shuffle=False, 
-                          collate_fn=transformer_collate, 
+                          collate_fn=_collate_fn, 
                           num_workers=2)
     
     return DataLoader(dataset, 
