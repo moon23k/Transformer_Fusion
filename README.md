@@ -30,6 +30,10 @@ To reduce Discripency between Pre-Trained Encoder and From-Scratch Decoder, Opti
 
 Use BERT as context Embedding Module and Fuse output via
 
+<center>
+  <img src="https://user-images.githubusercontent.com/71929682/193190830-45c9d6ec-8e03-4d37-993e-ad04965f0ca7.png" width="50%" height="50%">
+</center>
+
 <br>
 <br>
 
