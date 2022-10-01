@@ -4,6 +4,20 @@ from models.base import get_clones, DecoderLayer
 from transformers import BertModel
 
 
+
+class Encoder(nn.Module):
+    def __init__(self, config):
+        self.bert = BertModel.from_pretrained('bert-base-cased')
+        self.embeddings = self.bert.embeddings
+        self.fc = nn.Linear(config.bert_dim, config.hidden_dim)
+        self.dropout = nn.Dropout(config.dropout_ratio)
+
+    def forward(self, x):
+        out = self.bert(x)['last_hidden_state']
+        return self.dropout(self.fc(out))
+
+
+
 class Decoder(nn.Module):
     def __init__(self, config, embeddings):
         super(Decoder, self).__init__()
@@ -23,18 +37,19 @@ class SimpleModel(nn.Module):
         self.device = config.device
         self.pad_idx = config.pad_idx
         
-        self.bert = BertModel.from_pretrained('bert-base-cased')
-        #self.bert.resize_token_embeddings(config.input_dim)
-        self.embeddings = self.bert.embeddings
-
-        self.decoder = Decoder(config, self.embeddings)
+        self.encoder = Encoder(config)
+        self.decoder = Decoder(config, self.encoder.embeddings)
         self.fc_out = nn.Linear(config.hidden_dim, config.output_dim)
 
+
     def forward(self, src, trg):
-        src_mask, trg_mask = self.pad_mask(src), self.dec_mask(trg)
-        enc_out = self.encoder(src, src_mask)
-        dec_out = self.decoder(trg, enc_out, src_mask, trg_mask)
-        return self.fc_out(dec_out)
+        out = self.decoder(self.embeddings(trg), 
+                           self.encoder(src), 
+                           self.pad_mask(src), 
+                           self.dec_mask(trg))
+        
+        return self.fc_out(out)
+
     
     def pad_mask(self, x):
         return (x != self.pad_idx).unsqueeze(1).unsqueeze(2).to(self.device)

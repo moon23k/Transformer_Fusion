@@ -3,6 +3,7 @@ output_dim: 30522
 emb_dim: 256
 hidden_dim: 256
 pff_dim: 512
+bert_dim: 768
 n_layers: 3
 n_heads: 8
 dropout_ratio: 0.1
