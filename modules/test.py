@@ -1,16 +1,24 @@
 import torch.nn as nn
 import math, time, torch
-from modules.search import Search
 from torchtext.data.metrics import bleu_score
 
+from run import load_tokenizer
+from modules.data import load_dataloader
+from modules.search import Search
 
 
-class Tester(Search):
-    def __init__(self, config, model, dataloader, tokenizer):
+
+class Tester:
+    def __init__(self, config, model):
         super(Tester, self).__init__(config, model)
         self.model = model
-        self.tokenizer = tokenizer
-        self.dataloader = dataloader
+
+        if self.model.training:
+            self.model.eval()
+
+        self.tokenizer = load_tokenizer(config)
+        self.search = Search(config, self.model)
+        self.dataloader = load_dataloader(config, 'test')
 
         self.device = config.device
         self.pad_idx = config.pad_idx
@@ -18,7 +26,7 @@ class Tester(Search):
         self.eos_idx = config.eos_idx        
         self.model_name = config.model_name
         self.output_dim = config.output_dim
-        self.criterion = nn.CrossEntropyLoss(ignore_index=config.pad_idx, label_smoothing=0.1).to(config.device)
+        self.criterion = nn.CrossEntropyLoss(ignore_index=self.pad_idx, label_smoothing=0.1).to(self.device)
 
 
     def get_bleu_score(self, pred, trg):
@@ -41,7 +49,7 @@ class Tester(Search):
     def test(self):
         self.model.eval()
         tot_len = len(self.dataloader)
-        tot_loss, tot_greedy_bleu, tot_beam_bleu = 0, 0, 0
+        tot_loss, tot_greedy_bleu, tot_beam_bleu = 0.0, 0.0, 0.0
         start_time = time.time()
         
         with torch.no_grad():
@@ -49,13 +57,11 @@ class Tester(Search):
                 src, trg = batch['src'].to(self.device), batch['trg'].to(self.device)
 
                 logit = self.model(src, trg[:, :-1])
+                greedy_pred = self.Search.greedy_search(src)
+                beam_pred = self.Search.beam_search(src)
+
                 loss = self.criterion(logit.contiguous().view(-1, self.output_dim), 
                                       trg[:, 1:].contiguous().view(-1)).item()
-
-                greedy_pred = logit.argmax(-1).tolist()
-                beam_pred = self.beam_search(src, trg)
-                
-                return loss, greedy_pred, beam_pred
 
                 beam_bleu = self.get_bleu_score(beam_pred, trg)    
                 greedy_bleu = self.get_bleu_score(greedy_pred, trg)
