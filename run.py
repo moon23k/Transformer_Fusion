@@ -1,19 +1,20 @@
 import numpy as np
-import os, yaml, random, argparse
+import os, random, argparse
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
+from transformers import BertTokenizerFast
 
-from modules.data import load_dataloader
-from models.downstream import FusedModel, AddTopModel
+from models.transformer import Transformer
+from models.downstream import FusedModel, SimpleModel
 
 from modules.test import Tester
 from modules.train import Trainer
 from modules.inference import Translator
+from modules.data import load_dataloader
 
-from transformers import BertTokenizerFast, BartTokenizerFast
 
 
 def set_seed(SEED=42):
@@ -28,34 +29,34 @@ def set_seed(SEED=42):
 
 
 class Config(object):
-    def __init__(self, args):    
-        with open('configs/model.yaml', 'r') as f:
-            params = yaml.load(f, Loader=yaml.FullLoader)
-            params = params[args.model]
-            for p in params.items():
-                setattr(self, p[0], p[1])
-
+    def __init__(self, args):
+        #Args attrs
         self.task = args.task
         self.model_name = args.model
         self.scheduler = args.scheduler
 
-        self.unk_idx = 0
-        self.pad_idx = 1
-        self.bos_idx = 2
-        self.eos_idx = 3
+        #Tokenizer attrs
+        self.pad_idx = 0
+        self.bos_idx = 101
+        self.eos_idx = 102
 
+        #Model attrs
+        self.n_layers = 6
+        self.n_heads = 12
+        self.act = 'gelu'
+        self.emb_dim = 768
+        self.pff_dim = 3072
+        self.hidden_dim = 768
+        self.dropout_ratio = 0.1
+        self.input_dim = 28996
+        self.output_dim = 28996
+
+        #Training attrs
         self.clip = 1
         self.n_epochs = 10
         self.batch_size = 32
         self.learning_rate = 5e-4
         self.ckpt_path = f"ckpt/{self.model_name}.pt"
-
-
-        if self.mode_name == 'bart':
-            self.tokenizer_name = 'bart-base'
-        else:
-            self.tokenizer_name = 'bert-base-cased'
-
 
         if self.task == 'inference':
             self.search = args.search
@@ -95,20 +96,23 @@ def check_size(model):
     return size_all_mb
 
 
-def load_tokenizer(model_name):
-    if model_name != 'bart':
-        return BertTokenizer.from_pretrained(config.tokenizer_name)
-    elif model_name == 'bart':
-        return BartTokenizer.from_pretrained(config.tokenizer_name)
+def load_tokenizer():
+    return BertTokenizerFast.from_pretrained('distilbert-base-cased')
     
-
-    return tokenizer
 
 
 def load_model(config):
     #apply diff func according to the model
     if config.model_name == 'transformer':
         model = Transformer(config)
+        model.apply(init_xavier)
+
+    elif config.model_name == 'bert_simple':
+        model = SimpleModel(config)
+        model.apply(init_xavier)
+
+    elif config.model_name == 'bert_fused':
+        model = FusedModel(config)
         model.apply(init_xavier)
         
     if config.task != 'train':
@@ -150,7 +154,7 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
     assert args.task in ['train', 'test', 'inference']
-    assert args.model in ['transformer', 'bert', 'bart']
+    assert args.model in ['transformer', 'bert_simple', 'bert_fused']
  
     set_seed()
     config = Config(args)

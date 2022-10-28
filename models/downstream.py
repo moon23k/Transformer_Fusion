@@ -1,22 +1,22 @@
 import torch
 import torch.nn as nn
 from transformers import BertModel
-from models.transformer import clones, Embeddings, EncoderLayer, DecoderLayer
+from models.transformer import clones, Embeddings, EncoderLayer, DecoderLayer, Decoder
 
 
 
-class Encoder(nn.Module):
+class FusedEncoder(nn.Module):
 	def __init__(self, config):
-		super.(Encoder, self).__init__()
+		super(FusedEncoder, self).__init__()
 		self.embeddings = Embeddings(config)
-		self.layers = get_clone
+		self.layers = clones()
 
 
-class Deocder(nn.Module)
+class FusedDecoder(nn.Module):
 	def __init__(self, config):
-		super.(Encoder, self).__init__()
+		super(FusedDecoder, self).__init__()
 		self.embeddings = Embeddings(config)
-		self.layers = get_clone
+		self.layers = clones()
 
 
 
@@ -25,17 +25,18 @@ class FusedModel(nn.Module):
 		super(FusedModel, self).__init__()
 		self.bert = config.bert
 		self.embeddings = self.bert.embeddings
-		self.encoder = Encoder(config)
-		self.decoder = Decoder(config)
+		self.encoder = FusedEncoder(config)
+		self.decoder = FusedDecoder(config)
 
 
-	def pad_mask(self, x):
-		return
+    def pad_mask(self, x):
+        return (x != self.pad_idx).unsqueeze(1).unsqueeze(2)
 
-
-	def dec_mask(self, x):
-		return
-
+    def dec_mask(self, x):
+        seq_len = x.size(-1)
+        attn_shape = (1, seq_len, seq_len)
+        subsequent_mask = torch.triu(torch.ones(attn_shape), diagonal=1).type(torch.uint8) == 0
+        return self.pad_mask(x) & subsequent_mask.to(self.device)
 
 	def forward(self, src, trg):
 		
@@ -44,12 +45,24 @@ class FusedModel(nn.Module):
 
 
 
-class AddTopModel(nn.Module):
-	def __init__(self, config):
-		super(AddTopModel, self).__init__()
-		self.bert = BertModel.from_pretrained(config.bert_model)
-		self.fc_out = nn.Linear(config.hidden_dim, config.output_dim)
+class SimpleModel(nn.Module):
+    def __init__(self, config):
+        super(SimpleModel, self).__init__()
+        self.encoder = BertModel.from_pretrained(config.bert_model)
+        self.decoder = Decoder(config)
+        self.fc_out = nn.Linear(config.hidden_dim, config.output_dim)
 
-	def forward(self, src, trg):
-		out = self.bert(src, trg)[0]
-		return self.fc_out(out)
+    def pad_mask(self, x):
+        return (x != self.pad_idx).unsqueeze(1).unsqueeze(2)
+
+    def dec_mask(self, x):
+        seq_len = x.size(-1)
+        attn_shape = (1, seq_len, seq_len)
+        subsequent_mask = torch.triu(torch.ones(attn_shape), diagonal=1).type(torch.uint8) == 0
+        return self.pad_mask(x) & subsequent_mask.to(self.device)
+
+    def forward(self, src, trg):
+        e_mask, d_mask = self.pad_mask(src), self._dec_mask(trg)
+        memory = self.encoder(src, e_mask)[0]
+        out = self.decoder(trg, memory, e_mask, d_mask)
+        return self.fc_out(out)

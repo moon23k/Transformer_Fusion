@@ -7,38 +7,19 @@ from torch.nn.utils.rnn import pad_sequence
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, config, split):
         super().__init__()
-        self.model_name = config.model_name
-        self.tokenizer = run.load_tokenizer(config)
-        self.data = self.tokenize_data(self.read_dataset(split))
+        self.data = self.read_dataset(split)
         
-
     def read_dataset(self, split):
         with open(f"data/{split}.json", 'r') as f:
             data = json.load(f)
         return data
 
-
-    def tokenize_dataset(self, tokenizer):
-        tokenized = []
-        for elem in self.data:
-            temp = dict()
-            temp['src'] = self.tokenizer.Encode(elem['src'])
-            temp['trg'] = self.tokenizer.Encode(elem['trg'])
-            tokenized.append(temp)
-            
-        return tokenized
-
-
     def __len__(self):
         return len(self.data)
 
-    
     def __getitem__(self, idx):
         src = self.data[idx]['src']
-        if self.model_name == 'transformer':
-            trg = self.data[idx]['trg'][:-1]
-        else:
-            trg = self.data[idx]['trg']
+        trg = self.data[idx]['trg'][:-1]
         return src, trg 
 
 
@@ -71,8 +52,9 @@ def load_dataloader(config, split):
 
 
     dataset = Dataset(config, split)
+
     return DataLoader(dataset, 
                       batch_size=config.batch_size, 
                       shuffle=False, 
-                      collate_fn=rnn_collate, 
+                      collate_fn=_collate_fn, 
                       num_workers=2)

@@ -1,4 +1,5 @@
 import os, json
+from run import load_tokenizer
 from datasets import load_dataset
 
 
@@ -11,7 +12,7 @@ def save_datasets(train, valid, test):
 
 
 
-def filter_dataset(data, min_len=10, max_len=300):
+def filter_data(data, min_len=10, max_len=300):
     filtered = []
     for elem in data:
         temp_dict = dict()
@@ -27,6 +28,16 @@ def filter_dataset(data, min_len=10, max_len=300):
     return filtered
 
 
+def tokenize_data(data, tokenizer):
+    tokenized = []
+    for elem in data:
+        temp = dict()
+        temp['src'] = tokenizer.encode(elem['src'])
+        temp['trg'] = tokenizer.encode(elem['trg'])
+        tokenized.append(temp)
+
+    return tokenized
+
 
 def main(downsize=True, sort=True):
     #Download datasets
@@ -34,9 +45,14 @@ def main(downsize=True, sort=True):
     valid = load_dataset('wmt14', 'de-en', split='validation')['translation']
     test = load_dataset('wmt14', 'de-en', split='test')['translation']
 
-    train = filter_dataset(train)
-    valid = filter_dataset(valid)
-    test = filter_dataset(test)
+    train = filter_data(train)
+    valid = filter_data(valid)
+    test = filter_data(test)
+
+    tokenizer = load_tokenizer()
+    train = tokenize_data(train)
+    valid = tokenize_data(valid)
+    test = tokenize_data(test)
 
     if downsize:
         train = train[::100]
