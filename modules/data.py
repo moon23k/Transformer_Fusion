@@ -1,5 +1,4 @@
-import json, torch
-from run import load_tokenizer
+import json, torch, run
 from torch.utils.data import DataLoader
 from torch.nn.utils.rnn import pad_sequence
 
@@ -9,7 +8,7 @@ class Dataset(torch.utils.data.Dataset):
     def __init__(self, config, split):
         super().__init__()
         self.model_name = config.model_name
-        self.tokenizer = load_tokenizer(config)
+        self.tokenizer = run.load_tokenizer(config)
         self.data = self.tokenize_data(self.read_dataset(split))
         
 

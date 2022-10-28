@@ -13,7 +13,7 @@ from modules.test import Tester
 from modules.train import Trainer
 from modules.inference import Translator
 
-import transformers as T
+from transformers import BertTokenizerFast, BartTokenizerFast
 
 
 def set_seed(SEED=42):
@@ -38,7 +38,7 @@ class Config(object):
         self.task = args.task
         self.model_name = args.model
         self.scheduler = args.scheduler
-        
+
         self.unk_idx = 0
         self.pad_idx = 1
         self.bos_idx = 2
@@ -49,6 +49,13 @@ class Config(object):
         self.batch_size = 32
         self.learning_rate = 5e-4
         self.ckpt_path = f"ckpt/{self.model_name}.pt"
+
+
+        if self.mode_name == 'bart':
+            self.tokenizer_name = 'bart-base'
+        else:
+            self.tokenizer_name = 'bert-base-cased'
+
 
         if self.task == 'inference':
             self.search = args.search
@@ -89,19 +96,17 @@ def check_size(model):
 
 
 def load_tokenizer(model_name):
-    if model_name == 'bert':
-        return T.BertTokenizer.from_pretrained()
-    elif model_name == 'albert':
-        return T.BertTokenizer.from_pretrained()
-    elif model_name == 'distil_bert':
-        return T.BertTokenizer.from_pretrained()
+    if model_name != 'bart':
+        return BertTokenizer.from_pretrained(config.tokenizer_name)
+    elif model_name == 'bart':
+        return BartTokenizer.from_pretrained(config.tokenizer_name)
     
 
     return tokenizer
 
 
 def load_model(config):
-
+    #apply diff func according to the model
     if config.model_name == 'transformer':
         model = Transformer(config)
         model.apply(init_xavier)
@@ -113,7 +118,8 @@ def load_model(config):
 
     print(f"The {config.model_name} model has loaded")
     print(f"--- Model Params: {count_params(model):,}")
-    print(f"--- Model  Size : {check_size(model):.3f} MB")
+    print(f"--- Model  Size : {check_size(model):.3f} MB\n")
+    
     return model.to(config.device)
 
 
@@ -144,7 +150,7 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
     assert args.task in ['train', 'test', 'inference']
-    assert args.model in ['bert', 'gpt', 'bart']
+    assert args.model in ['transformer', 'bert', 'bart']
  
     set_seed()
     config = Config(args)

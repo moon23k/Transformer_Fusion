@@ -1,10 +1,8 @@
+import math, time, torch, run
 import torch.nn as nn
-import math, time, torch
-from torchtext.data.metrics import bleu_score
-
-from run import load_tokenizer
-from modules.data import load_dataloader
 from modules.search import Search
+from modules.data import load_dataloader
+from torchtext.data.metrics import bleu_score
 
 
 
@@ -16,8 +14,8 @@ class Tester:
         if self.model.training:
             self.model.eval()
 
-        self.tokenizer = load_tokenizer(config)
         self.search = Search(config, self.model)
+        self.tokenizer = run.load_tokenizer(config)
         self.dataloader = load_dataloader(config, 'test')
 
         self.device = config.device
