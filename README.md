@@ -8,11 +8,18 @@ This repo implemnets BERT Fused Model pytorch code, and compare it with **BERT G
 
 ## Model desc
 
-* BERT Fused Model
+* BERT Simple
+
+Simply Add Decoder on BERT
 
 <br>
 
-* BERT Generation Model
+* BERT Fused
+
+
+<br>
+
+* BERT Generation Pre Trained Model
 
 
 <br>
@@ -38,10 +45,12 @@ This repo implemnets BERT Fused Model pytorch code, and compare it with **BERT G
 
 | Model | Lang Pair | Best Training Loss | BLEU Score |
 | :---: | :---: | :---: | :---: |
-| BERT Fused           | En-De | - | 34.41 |
-| BERT Fused        | De-En | - | 11.71 |
-| BERT Generation  | En-De | - | - |
-| BERT Generation  | De-En | - | - |
+| BERT Simple     | En-De | - | - |
+| BERT Simple     | De-En | - | - |
+| BERT Fused      | En-De | - | 34.41 |
+| BERT Fused      | De-En | - | 11.71 |
+| BERT Generation | En-De | - | - |
+| BERT Generation | De-En | - | - |
 
 <br>
 <br>
