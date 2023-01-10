@@ -6,7 +6,9 @@ from module.data import load_dataloader
 from model.fused import FusedModel
 from model.simple import SimpleModel
 from transformers import (set_seed,
-                          BertTokenizerFast, 
+                          BertTokenizerFast,
+                          BertGenerationDecoder,
+                          BertGenerationEncoder,
                           EncoderDecoderModel)
 
 
@@ -50,7 +52,9 @@ def load_model(config):
         model = FusedModel(config)
     
     elif config.model_name == 'generation':
-        model = EncoderDecoderModel.from_encoder_decoder_pretrained(config.bert, config.bert)
+        encoder = BertGenerationEncoder.from_pretrained(config.bert)
+        decoder = BertGenerationDecoder.from_pretrained(config.bert, add_cross_attention=True, is_decoder=True)
+        model = EncoderDecoderModel(encoder=encoder, decoder=decoder)        
     
     print(f"BERT {config.model_name.upper()} Model for has loaded")
 
@@ -128,11 +132,15 @@ def main(args):
     set_seed(42)
 
     config = Config(args.task, args.task)
+    tokenizer = BertTokenizerFast.from_pretrained(config.model_name, model_max_length=300)
+
+    setattr(config, 'vocab_size', tokenizer.vocab_size)
+    setattr(config, 'pad_id', tokenizer.pad_token_id)
+
     model = load_model(config)
     setattr(config, 'pad_id', model.config.pad_token_id)
 
-    if config.task != 'train':
-        tokenizer = BertTokenizerFast.from_pretrained(config.model_name, model_max_length=300)
+    
 
     if config.mode == 'train':
         train(config, model)
