@@ -1,46 +1,37 @@
 import time, math, json, torch
 import torch.nn as nn
+import torch.amp as amp
 import torch.optim as optim
-from modules.data import load_dataloader
 
 
 
 class Trainer:
-    def __init__(self, config, model):
+    def __init__(self, config, model, train_dataloader, valid_dataloader):
         super(Trainer, self).__init__()
+        
         self.model = model
+        self.src = config.src
+        self.trg = config.trg
+        self.task = config.task
         self.clip = config.clip
         self.device = config.device
         self.n_epochs = config.n_epochs
-        self.output_dim = config.output_dim
-        self.model_name = config.model_name
 
-        self.train_dataloader = load_dataloader(config, 'train')
-        self.valid_dataloader = load_dataloader(config, 'valid')
+        self.device_type = config.device_type
+        self.scaler = torch.cuda.amp.GradScaler()
+        self.iters_to_accumulate = config.iters_to_accumulate        
 
-        self.criterion = nn.CrossEntropyLoss(ignore_index=config.pad_idx, 
-                                             label_smoothing=0.1).to(self.device)
+        self.train_dataloader = train_dataloader
+        self.valid_dataloader = valid_dataloader
+
         self.optimizer = optim.Adam(self.model.parameters(), 
                                     lr=config.learning_rate, 
                                     betas=(0.9, 0.98), 
                                     eps=1e-8)
+        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min')
         
-        if config.scheduler == 'constant':
-            self.scheduler = None
-        elif config.scheduler == 'exp':
-            self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=0.95)
-        elif config.scheduler == 'cycle':
-            self.scheduler = optim.lr_scheduler.CyclicLR(self.optimizer,
-                                                         base_lr=1e-4, 
-                                                         max_lr=1e-3, 
-                                                         step_size_up=10, 
-                                                         step_size_down=None, 
-                                                         mode='exp_range', 
-                                                         gamma=0.97,
-                                                         cycle_momentum=False)
-        
-        self.ckpt_path = config.ckpt_path
-        self.record_path = f"ckpt/{self.model_name}.json"
+        self.ckpt = config.ckpt
+        self.record_path = f"ckpt/{config.task}.json"
         self.record_keys = ['epoch', 'train_loss', 'train_ppl',
                             'valid_loss', 'valid_ppl', 
                             'learning_rate', 'train_time']
@@ -65,8 +56,16 @@ class Trainer:
         return f"{elapsed_min}m {elapsed_sec}s"
 
 
+    def split_batch(self, batch):
+        input_ids = batch[f'{self.src}_ids'].to(self.device)
+        attention_mask =  batch[f'{self.src}_mask'].to(self.device)
+        labels = batch[f'{self.trg}_ids'].to(self.device)
+        
+        return input_ids, attention_mask, labels
+
+
     def train(self):
-        best_bleu, records = float('inf'), []
+        best_loss, records = float('inf'), []
         for epoch in range(1, self.n_epochs + 1):
             start_time = time.time()
 
@@ -77,17 +76,17 @@ class Trainer:
             
             records.append(record_dict)
             self.print_epoch(record_dict)
-
-            if self.scheduler is not None:
-                self.scheduler.step()
+            
+            val_loss = record_dict['valid_loss']
+            self.scheduler.step(val_loss)
 
             #save best model
-            if best_bleu > record_dict['valid_loss']:
-                best_bleu = record_dict['valid_loss']
+            if best_loss > val_loss:
+                best_loss = val_loss
                 torch.save({'epoch': epoch,
                             'model_state_dict': self.model.state_dict(),
                             'optimizer_state_dict': self.optimizer.state_dict()},
-                            self.ckpt_path)
+                            self.ckpt)
             
         #save train_records
         with open(self.record_path, 'w') as fp:
@@ -99,20 +98,27 @@ class Trainer:
         epoch_loss = 0
         tot_len = len(self.train_dataloader)
 
-        for _, batch in enumerate(self.train_dataloader):
-            src, trg = batch['src'].to(self.device), batch['trg'].to(self.device)
+        for idx, batch in enumerate(self.train_dataloader):
+            input_ids, attention_mask, labels = self.split_batch(batch)
+
+            with torch.autocast(device_type=self.device_type, dtype=torch.float16):
+                loss = self.model(input_ids = input_ids, 
+                                  attention_mask = attention_mask,
+                                  labels = labels)[0]
+                loss = loss / self.iters_to_accumulate
             
-            logit = self.model(src, trg[:, :-1])
+            #Backward Loss
+            self.scaler.scale(loss).backward()        
             
-            loss = self.criterion(logit.contiguous().view(-1, self.output_dim),
-                                    trg[:, 1:].contiguous().view(-1))
-            
-            loss.backward()
-            
-            nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.clip)
-            
-            self.optimizer.step()
-            self.optimizer.zero_grad()
+            if (idx + 1) % self.iters_to_accumulate == 0:
+                #Gradient Clipping
+                self.scaler.unscale_(self.optimizer)
+                nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.clip)
+                
+                #Gradient Update & Scaler Update
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+                self.optimizer.zero_grad()
 
             epoch_loss += loss.item()
         
@@ -127,14 +133,14 @@ class Trainer:
         tot_len = len(self.valid_dataloader)
         
         with torch.no_grad():
-            for _, batch in enumerate(self.valid_dataloader):
-                src, trg = batch['src'].to(self.device), batch['trg'].to(self.device)
+            for _, batch in enumerate(self.valid_dataloader):   
+                input_ids, attention_mask, labels = self.split_batch(batch)           
                 
-                logit = self.model(src, trg[:, :-1])
+                with torch.autocast(device_type=self.device_type, dtype=torch.float16):
+                    loss = self.model(input_ids = input_ids, 
+                                      attention_mask = attention_mask,
+                                      labels = labels)[0]
 
-                loss = self.criterion(logit.contiguous().view(-1, self.output_dim),
-                                        trg[:, 1:].contiguous().view(-1))
-                
                 epoch_loss += loss.item()
         
         epoch_loss = round(epoch_loss / tot_len, 3)

@@ -1,5 +1,6 @@
 import torch, copy, math
 import torch.nn as nn
+from transformers import BertModel
 
 
 def clones(module, N):
@@ -162,14 +163,13 @@ class Decoder(nn.Module):
         return self.norm(x)
 
 
-class Transformer(nn.Module):
+
+class SimpleModel(nn.Module):
     def __init__(self, config):
-        super(Transformer, self).__init__()
-        self.device = config.device
-        self.pad_idx = config.pad_idx
-        self.encoder = Encoder(config)
+        super(SimpleModel, self).__init__()
+        self.encoder = BertModel.from_pretrained(config.bert)
         self.decoder = Decoder(config)
-        self.fc_out = nn.Linear(config.hidden_dim, config.output_dim)
+
 
     def pad_mask(self, x):
         return (x != self.pad_idx).unsqueeze(1).unsqueeze(2)
@@ -184,4 +184,4 @@ class Transformer(nn.Module):
         e_mask, d_mask = self.pad_mask(src), self.dec_mask(trg)
         memory = self.encoder(src, e_mask)
         dec_out = self.decoder(trg, memory, e_mask, d_mask)
-        return self.fc_out(dec_out)        
+        return self.fc_out(dec_out)                
