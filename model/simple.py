@@ -3,6 +3,7 @@ import torch.nn as nn
 from transformers import BertModel
 
 
+
 def clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
 
@@ -155,6 +156,7 @@ class Decoder(nn.Module):
         self.emb = Embeddings(config)
         self.norm = LayerNorm(config.hidden_dim)
         self.layers = clones(DecoderLayer(config), config.n_layers)
+        
 
     def forward(self, x, memory, e_mask, d_mask):
         x = self.emb(x)
@@ -169,6 +171,7 @@ class SimpleModel(nn.Module):
         super(SimpleModel, self).__init__()
         self.encoder = BertModel.from_pretrained(config.bert)
         self.decoder = Decoder(config)
+        self.fc_out = nn.Linear(config.hidden_dim, config.vocab_size)
 
 
     def pad_mask(self, x):

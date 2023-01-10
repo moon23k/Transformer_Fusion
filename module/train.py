@@ -24,10 +24,7 @@ class Trainer:
         self.train_dataloader = train_dataloader
         self.valid_dataloader = valid_dataloader
 
-        self.optimizer = optim.Adam(self.model.parameters(), 
-                                    lr=config.learning_rate, 
-                                    betas=(0.9, 0.98), 
-                                    eps=1e-8)
+        self.optimizer, self.bert_optimizer = self.get_optims(config)
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min')
         
         self.ckpt = config.ckpt
@@ -35,6 +32,34 @@ class Trainer:
         self.record_keys = ['epoch', 'train_loss', 'train_ppl',
                             'valid_loss', 'valid_ppl', 
                             'learning_rate', 'train_time']
+
+
+
+    def get_optims(self, config):
+        if config.model_name == 'generation':
+            optimizer = optim.Adam(params=self.model.parameters(), 
+                                   lr=config.learning_rate * 0.1, 
+                                   betas=(0.9, 0.98), 
+                                   eps=1e-8)            
+            bert_optimizer = None
+
+        elif config.model_name != 'generation':
+            optim_params = [self.model.encoder.parameters(),
+                            self.model.decoder.parameters(),
+                            self.model.fc_out.parameters()]
+            
+            optimizer = optim.Adam(params=optim_params, 
+                                   lr=config.learning_rate, 
+                                   betas=(0.9, 0.98), 
+                                   eps=1e-8)
+
+            bert_optimizer = optim.Adam(self.model.bert.parameters(), 
+                                        lr=config.learning_rate * 0.1, 
+                                        betas=(0.9, 0.98), 
+                                        eps=1e-8)
+
+        return optimizer, bert_optimizer
+        
 
 
     def print_epoch(self, record_dict):
@@ -48,6 +73,7 @@ class Trainer:
               Valid PPL: {record_dict['valid_ppl']:.2f}\n""".replace(' ' * 14, ''))
 
 
+
     @staticmethod
     def measure_time(start_time, end_time):
         elapsed_time = end_time - start_time
@@ -56,12 +82,14 @@ class Trainer:
         return f"{elapsed_min}m {elapsed_sec}s"
 
 
+
     def split_batch(self, batch):
         input_ids = batch[f'{self.src}_ids'].to(self.device)
         attention_mask =  batch[f'{self.src}_mask'].to(self.device)
         labels = batch[f'{self.trg}_ids'].to(self.device)
         
         return input_ids, attention_mask, labels
+
 
 
     def train(self):
@@ -93,6 +121,8 @@ class Trainer:
             json.dump(records, fp)
 
 
+
+
     def train_epoch(self):
         self.model.train()
         epoch_loss = 0
@@ -113,12 +143,22 @@ class Trainer:
             if (idx + 1) % self.iters_to_accumulate == 0:
                 #Gradient Clipping
                 self.scaler.unscale_(self.optimizer)
+                if self.model_name != 'generation':
+                    self.scaler.unscale_(self.optimizer)
+
                 nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.clip)
                 
+
                 #Gradient Update & Scaler Update
                 self.scaler.step(self.optimizer)
+                if self.model_name != 'generation':
+                    self.scaler.step(self.bert_optimizer)
+                
                 self.scaler.update()
+                
                 self.optimizer.zero_grad()
+                if self.model_name != 'generation':
+                    self.bert_optimizer.zero_grad()
 
             epoch_loss += loss.item()
         
@@ -126,6 +166,7 @@ class Trainer:
         epoch_ppl = round(math.exp(epoch_loss), 3)    
         return epoch_loss, epoch_ppl
     
+
 
     def valid_epoch(self):
         self.model.eval()

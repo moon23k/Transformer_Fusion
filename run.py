@@ -3,10 +3,12 @@ from module.test import Tester
 from module.train import Trainer
 from module.data import load_dataloader
 
+from model.fused import FusedModel
+from model.simple import SimpleModel
 from transformers import (set_seed,
-                          AutoModel,
-                          AutoConfig, 
-                          AutoTokenizerFast)
+                          BertTokenizerFast, 
+                          EncoderDecoderModel)
+
 
 
 class Config(object):
@@ -15,13 +17,14 @@ class Config(object):
         self.task = task
         self.mode = mode
         self.model_name = model
+        self.bert = 'prajjwal1/bert-small'
         self.ckpt = f"ckpt/{self.task}.pt"
         self.src, self.trg = task[:2], task[2:]
 
         self.clip = 1
         self.n_epochs = 10
         self.batch_size = 16
-        self.learning_rate = 5e-5
+        self.learning_rate = 1e-4
         self.iters_to_accumulate = 4
         
         use_cuda = torch.cuda.is_available()
@@ -38,16 +41,27 @@ class Config(object):
             print(f"* {attribute}: {value}")
 
 
+
 def load_model(config):
-    if config.mode == 'train':
-        model = AutoModel.from_pretrained(config.model_name)
-        print(f"Pretrained {config.task.upper()} Model for has loaded")
+    if config.model_name == 'simple':
+        model = SimpleModel(config)
+
+    elif config.model_name == 'fused':
+        model = FusedModel(config)
+    
+    elif config.model_name == 'generation':
+        model = EncoderDecoderModel.from_encoder_decoder_pretrained(config.bert, config.bert)
+    
+    print(f"BERT {config.model_name.upper()} Model for has loaded")
+
     
     if config.mode != 'train':
         assert os.path.exists(config.ckpt)
-        model_config = AutoMode.from_pretrained(config.model_name)
-        print(f"Trained Model has loaded from {config.ckpt}")
+        model_state = torch.load(config.ckpt, map_location=config.device)['model_state_dict']
+        model.load_state_dict(model_state)
+        print(f"Trained Model States has loaded on the Model")
 
+    
     def count_params(model):
         params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         return params
@@ -64,8 +78,10 @@ def load_model(config):
         size_all_mb = (param_size + buffer_size) / 1024**2
         return size_all_mb
 
+    
     print(f"--- Model Params: {count_params(model):,}")
     print(f"--- Model  Size : {check_size(model):.3f} MB\n")
+    
     return model.to(config.device)
 
 
@@ -110,13 +126,13 @@ def inference(model, tokenizer):
 
 def main(args):
     set_seed(42)
+
     config = Config(args.task, args.task)
     model = load_model(config)
-
     setattr(config, 'pad_id', model.config.pad_token_id)
 
     if config.task != 'train':
-        tokenizer = AutoTokenizerFast.from_pretrained(config.model_name, model_max_length=300)
+        tokenizer = BertTokenizerFast.from_pretrained(config.model_name, model_max_length=300)
 
     if config.mode == 'train':
         train(config, model)
@@ -139,6 +155,6 @@ if __name__ == '__main__':
 
     assert args.task in ['ende', 'deen']
     assert args.mode in ['train', 'test', 'inference']
-    assert args.model in ['simple', 'fused', 'warmup']    
+    assert args.model in ['simple', 'fused', 'generation']    
 
     main(args)

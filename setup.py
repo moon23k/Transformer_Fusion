@@ -1,6 +1,6 @@
 import os, json
 from datasets import load_dataset
-from transformers import AutoTokenizerFast
+from transformers import BertTokenizerFast
 
 
 
@@ -43,33 +43,28 @@ def process(orig_data, tokenizer, volumn=36000):
 
 
 
-def save_data(task, data_obj):
+def save_data(data_obj):
     #split data into train/valid/test sets
     train, valid, test = data_obj[:-6000], data_obj[-6000:-3000], data_obj[-3000:]
     data_dict = {k:v for k, v in zip(['train', 'valid', 'test'], [train, valid, test])}
 
     for key, val in data_dict.items():
-        with open(f'data/{task}/{key}.json', 'w') as f:
+        with open(f'data/{key}.json', 'w') as f:
             json.dump(val, f)        
-        assert os.path.exists(f'data/{task}/{key}.json')
+        assert os.path.exists(f'data/{key}.json')
     
 
 
-def main(task):
+def main():
     #Prerequisite
     os.makedirs(f'data/{task}', exist_ok=True)
-
-    #Load Original Data
+    tokenizer = BertTokenizerFast.from_pretrained('bert-small-uncased', model_max_length=300)
+    
     orig = load_dataset('wmt14', 'de-en', split='train')['translation']
-    tokenizer = AutoTokenizerFast.from_pretrained('t5-small', model_max_length=300)
-
-    #PreProcess Data
-    processed = process_nmt(orig, tokenizer)
-
-    #Save Data
-    save_data(task, processed)
+    processed = process(orig, tokenizer)
+    save_data(processed)
 
 
 
 if __name__ == '__main__':
-    main(args.task)
+    main()
