@@ -57,11 +57,9 @@ def load_dataloader(config, split):
         de_mask_batch = pad_batch(de_mask_batch, pad_id)
 
         return {'en_ids': en_ids_batch, 
-                'en_mask': en_mask_batch
+                'en_mask': en_mask_batch,
                 'de_ids': de_ids_batch, 
                 'de_mask': de_mask_batch}
-
-
 
     return DataLoader(Dataset(split), 
                       batch_size=config.batch_size, 

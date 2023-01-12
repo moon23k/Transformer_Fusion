@@ -13,7 +13,7 @@ def attention(query, key, value, mask=None, dropout=None):
     scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)
     
     if mask is not None:
-        scores = scores.masked_fill(mask == 0, -1e9)
+        scores = scores.masked_fill(mask == 0, -1e4)
     p_attn = scores.softmax(dim=-1)
 
     if dropout is not None:
@@ -42,13 +42,15 @@ class PositionalEncoding(nn.Module):
 class Embeddings(nn.Module):
     def __init__(self, config):
         super(Embeddings, self).__init__()
-        self.lut = nn.Embedding(config.input_dim, config.emb_dim)
+        self.lut = nn.Embedding(config.vocab_size, config.emb_dim)
         self.scale = math.sqrt(config.emb_dim)
         self.pos_encoding = PositionalEncoding(config)
+        self.fc = nn.Linear(config.emb_dim, config.hidden_dim)
 
     def forward(self, x):
         out = self.lut(x) * self.scale
-        return self.pos_encoding(out) 
+        out = self.pos_encoding(out)
+        return self.fc(out)
 
 
 class MultiHeadAttention(nn.Module):
@@ -169,13 +171,15 @@ class Decoder(nn.Module):
 class SimpleModel(nn.Module):
     def __init__(self, config):
         super(SimpleModel, self).__init__()
+        self.pad_id = config.pad_id
+        self.device = config.device
         self.encoder = BertModel.from_pretrained(config.bert)
         self.decoder = Decoder(config)
         self.fc_out = nn.Linear(config.hidden_dim, config.vocab_size)
 
 
     def pad_mask(self, x):
-        return (x != self.pad_idx).unsqueeze(1).unsqueeze(2)
+        return (x != self.pad_id).unsqueeze(1).unsqueeze(2)
 
     def dec_mask(self, x):
         seq_len = x.size(-1)
@@ -183,8 +187,8 @@ class SimpleModel(nn.Module):
         subsequent_mask = torch.triu(torch.ones(attn_shape), diagonal=1).type(torch.uint8) == 0
         return self.pad_mask(x) & subsequent_mask.to(self.device)
 
-    def forward(self, src, trg):
-        e_mask, d_mask = self.pad_mask(src), self.dec_mask(trg)
-        memory = self.encoder(src, e_mask)
-        dec_out = self.decoder(trg, memory, e_mask, d_mask)
+    def forward(self, input_ids, attention_mask, labels):
+        e_mask, d_mask = self.pad_mask(input_ids), self.dec_mask(labels)
+        memory = self.encoder(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
+        dec_out = self.decoder(labels, memory, e_mask, d_mask)
         return self.fc_out(dec_out)                

@@ -56,10 +56,7 @@ def save_data(data_obj):
 
 
 def main():
-    #Prerequisite
-    os.makedirs(f'data/{task}', exist_ok=True)
-    tokenizer = BertTokenizerFast.from_pretrained('bert-small-uncased', model_max_length=300)
-    
+    tokenizer = BertTokenizerFast.from_pretrained('prajjwal1/bert-small', model_max_length=300)
     orig = load_dataset('wmt14', 'de-en', split='train')['translation']
     processed = process(orig, tokenizer)
     save_data(processed)

@@ -20,15 +20,22 @@ class Config(object):
         self.mode = mode
         self.model_name = model
         self.bert = 'prajjwal1/bert-small'
-        self.ckpt = f"ckpt/{self.task}.pt"
+        self.ckpt = f"ckpt/{self.task}_{self.model_name}.pt"
         self.src, self.trg = task[:2], task[2:]
-
+        
         self.clip = 1
         self.n_epochs = 10
         self.batch_size = 16
         self.learning_rate = 1e-4
         self.iters_to_accumulate = 4
-        
+
+        self.n_heads = 8
+        self.n_layers = 3
+        self.dropout_ratio = 0.1
+        self.pff_dim = 512
+        self.hidden_dim = 512
+        self.emb_dim = self.hidden_dim // 2
+
         use_cuda = torch.cuda.is_available()
         self.device_type = 'cuda' if use_cuda else 'cpu'
 
@@ -52,10 +59,19 @@ def load_model(config):
         model = FusedModel(config)
     
     elif config.model_name == 'generation':
-        encoder = BertGenerationEncoder.from_pretrained(config.bert)
-        decoder = BertGenerationDecoder.from_pretrained(config.bert, add_cross_attention=True, is_decoder=True)
+        encoder = BertGenerationEncoder.from_pretrained(config.bert, 
+                                                        bos_token_id=config.bos_id,
+                                                        eos_token_id=config.eos_id)
+        decoder = BertGenerationDecoder.from_pretrained(config.bert, 
+                                                        add_cross_attention=True, 
+                                                        is_decoder=True,
+                                                        bos_token_id=config.bos_id,
+                                                        eos_token_id=config.eos_id)
         model = EncoderDecoderModel(encoder=encoder, decoder=decoder)        
-    
+        model.config.decoder.decoder_start_token_id = config.bos_id
+        model.config.pad_token_id = config.pad_id
+        model.config.vocab_size = config.vocab_size
+
     print(f"BERT {config.model_name.upper()} Model for has loaded")
 
     
@@ -130,17 +146,15 @@ def inference(model, tokenizer):
 
 def main(args):
     set_seed(42)
-
     config = Config(args.task, args.task)
     tokenizer = BertTokenizerFast.from_pretrained(config.model_name, model_max_length=300)
 
     setattr(config, 'vocab_size', tokenizer.vocab_size)
     setattr(config, 'pad_id', tokenizer.pad_token_id)
+    setattr(config, 'bos_id', tokenizer.cls_token_id)
+    setattr(config, 'eos_id', tokenizer.sep_token_id)
 
-    model = load_model(config)
-    setattr(config, 'pad_id', model.config.pad_token_id)
-
-    
+    model = load_model(config)    
 
     if config.mode == 'train':
         train(config, model)

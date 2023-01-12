@@ -121,7 +121,7 @@ class Decoder(nn.Module):
 
 class FusedModel(nn.Module):
     def __init__(self, config):
-
+        super(FusedModel, self).__init__()
         self.device = config.device
         self.pad_id = config.pad_id
 
@@ -132,7 +132,7 @@ class FusedModel(nn.Module):
 
 
     def pad_mask(self, x):
-        return (x != self.pad_idx).unsqueeze(1).unsqueeze(2)
+        return (x != self.pad_id).unsqueeze(1).unsqueeze(2)
 
 
     def dec_mask(self, x):
@@ -142,10 +142,10 @@ class FusedModel(nn.Module):
         return self.pad_mask(x) & subsequent_mask.to(self.device)
 
 
-    def forward(self, src, trg):
-        e_mask, d_mask = self.pad_mask(src), self.dec_mask(trg)
-        bert_out = self.bert(src)
+    def forward(self, input_ids, attention_mask, labels):
+        e_mask, d_mask = self.pad_mask(input_ids), self.dec_mask(labels)
+        bert_out = self.bert(input_ids, attention_mask).last_hidden_state
 
-        memory = self.encoder(src, e_mask, bert_out)
-        dec_out = self.decoder(trg, memory, e_mask, d_mask, bert_out)
+        memory = self.encoder(input_ids, e_mask, bert_out)
+        dec_out = self.decoder(labels, memory, e_mask, d_mask, bert_out)
         return self.fc_out(dec_out)
