@@ -13,7 +13,6 @@ class Tester:
         self.tokenizer = tokenizer
         self.device = config.device
         self.dataloader = test_dataloader
-        self.device_type = config.device_type
 
 
     @staticmethod

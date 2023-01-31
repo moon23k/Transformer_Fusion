@@ -10,6 +10,7 @@ class Trainer:
         super(Trainer, self).__init__()
         
         self.model = model
+        self.lr = config.lr
         self.src = config.src
         self.trg = config.trg
         self.task = config.task
@@ -26,12 +27,9 @@ class Trainer:
         self.train_dataloader = train_dataloader
         self.valid_dataloader = valid_dataloader
 
-        self.optimizer, self.bert_optimizer = self.get_optims(config)
+        self.optimizer, self.bert_optimizer = self.get_optims()
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min')
-        
-        if config.model_name != 'generation':
-            self.criterion = nn.CrossEntropyLoss(ignore_index=config.pad_id, 
-                                                 label_smoothing=0.1).to(self.device)        
+                
         self.ckpt = config.ckpt
         self.record_path = f"ckpt/{config.task}_{config.model_name}.json"
         self.record_keys = ['epoch', 'train_loss', 'train_ppl',
@@ -40,34 +38,29 @@ class Trainer:
 
 
 
-    def get_optims(self, config):
+    def get_optims(self):
 
-        def get_optim(optim_params, lr):
-            optimizer = optim.Adam(params=optim_params, 
-                                   lr=lr, 
-                                   betas=(0.9, 0.98), 
-                                   eps=1e-8)
-            return optimizer
-
-        lr = config.learning_rate
-
-        if config.model_name == 'simple':
+        if self.model_name == 'simple':
             optim_params = list(self.model.decoder.parameters()) + \
                            list(self.model.fc_out.parameters())
-            optimizer = get_optim(optim_params, lr)
-            bert_optimizer = get_optim(self.model.encoder.parameters(), lr * 0.1)
 
-        elif config.model_name == 'fused':
+            optimizer = optim.AdamW(params=optim_params, lr=self.lr)
+            bert_optimizer = optim.AdamW(params=self.model.encoder.parameters(), lr=self.lr * 0.1)
+
+
+        elif self.model_name == 'fused':
             optim_params = list(self.model.encoder.parameters()) + \
                            list(self.model.decoder.parameters()) + \
                            list(self.model.fc_out.parameters())
-            
-            optimizer = get_optim(optim_params, lr)
-            bert_optimizer = get_optim(self.model.bert.parameters(), lr * 0.1)
 
-        elif config.model_name == 'generation':
-            optimizer = get_optim(self.model.parameters(), lr)
+            optimizer = optim.AdamW(params=optim_params, lr=self.lr)
+            bert_optimizer = optim.AdamW(params=self.model.bert.parameters(), lr=self.lr * 0.1)
+
+
+        elif self.model_name == 'generation':
+            optimizer = optim.AdamW(params=self.model.parameters(), lr=self.lr)
             bert_optimizer = None
+
 
         return optimizer, bert_optimizer
         
@@ -143,16 +136,10 @@ class Trainer:
             input_ids, attention_mask, labels = self.split_batch(batch)
 
             with torch.autocast(device_type=self.device_type, dtype=torch.float16):
-                if self.model_name == 'generation':
-                    loss = self.model(input_ids = input_ids, 
-                                      decoder_input_ids = labels,
-                                      labels = labels).loss
-                else:
-                    logit = self.model(input_ids = input_ids, 
-                                       attention_mask = attention_mask,
-                                       labels = labels)
-                    loss = self.criterion(logit.contiguous().view(-1, self.vocab_size),
-                                          labels.contiguous().view(-1))
+
+                loss = self.model(input_ids = input_ids, 
+                                  decoder_input_ids = labels,
+                                  labels = labels).loss
 
                 loss = loss / self.iters_to_accumulate
             
@@ -197,16 +184,10 @@ class Trainer:
                 input_ids, attention_mask, labels = self.split_batch(batch)           
                 
                 with torch.autocast(device_type=self.device_type, dtype=torch.float16):
-                    if self.model_name == 'generation':
-                        loss = self.model(input_ids = input_ids, 
-                                        decoder_input_ids = labels,
-                                        labels = labels).loss
-                    else:
-                        logit = self.model(input_ids = input_ids, 
-                                        attention_mask = attention_mask,
-                                        labels = labels)
-                        loss = self.criterion(logit.contiguous().view(-1, self.vocab_size),
-                                            labels.contiguous().view(-1))
+
+                    loss = self.model(input_ids = input_ids, 
+                                      decoder_input_ids = labels,
+                                      labels = labels).loss
 
                 epoch_loss += loss.item()
         

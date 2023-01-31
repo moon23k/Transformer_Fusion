@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from collections import namedtuple
 from transformers import BertModel
 from model.simple import (clones, 
                           LayerNorm,
@@ -122,14 +123,19 @@ class Decoder(nn.Module):
 class FusedModel(nn.Module):
     def __init__(self, config):
         super(FusedModel, self).__init__()
+        
         self.device = config.device
         self.pad_id = config.pad_id
+        self.max_len = config.max_len
 
-        self.bert = BertModel.from_pretrained(config.bert)
+        self.bert = BertModel.from_pretrained(config.bert_mname)
         self.encoder = Encoder(config)
         self.decoder = Decoder(config)
         self.fc_out = nn.Linear(config.hidden_dim, config.vocab_size)
 
+        self.criterion = nn.CrossEntropyLoss(ignore_index=config.pad_id, 
+                                             label_smoothing=0.1).to(self.device)
+        self.outputs = namedtuple('outputs', ('logit', 'loss'))
 
     def pad_mask(self, x):
         return (x != self.pad_id).unsqueeze(1).unsqueeze(2)
@@ -142,10 +148,35 @@ class FusedModel(nn.Module):
         return self.pad_mask(x) & subsequent_mask.to(self.device)
 
 
+    def genreate(self, input_ids, attention_mask):
+        batch_size = input_ids.size(0)
+        
+        e_mask = self.pad_mask(input_ids)
+        bert_out = self.bert(input_ids, attention_mask).last_hidden_state
+        memory = self.encoder(input_ids, e_mask, bert_out)
+
+        preds = torch.zeros(batch_size, self.max_len).to(self.device)
+        for i in range(1, self.max_len):
+            d_mask = self.dec_mask(preds)
+            dec_out = self.decoder(preds, memory, e_mask, d_mask)
+            logit = self.fc_out(dec_out).argmax(-1)
+
+            if logit.sum() == 0:
+                break
+
+            preds[i] = logit
+
+        return preds.tolist()
+
+
     def forward(self, input_ids, attention_mask, labels):
         e_mask, d_mask = self.pad_mask(input_ids), self.dec_mask(labels)
         bert_out = self.bert(input_ids, attention_mask).last_hidden_state
 
         memory = self.encoder(input_ids, e_mask, bert_out)
         dec_out = self.decoder(labels, memory, e_mask, d_mask, bert_out)
-        return self.fc_out(dec_out)
+        
+        logit = self.fc_out(dec_out)
+        loss = self.criterion(logit, labels)
+
+        return self.outputs(logit, loss)

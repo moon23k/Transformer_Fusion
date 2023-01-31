@@ -1,10 +1,12 @@
 import os, argparse, torch
+
 from module.test import Tester
 from module.train import Trainer
 from module.data import load_dataloader
 
 from model.fused import FusedModel
 from model.simple import SimpleModel
+
 from transformers import (set_seed,
                           BertTokenizerFast,
                           BertGenerationDecoder,
@@ -14,26 +16,27 @@ from transformers import (set_seed,
 
 
 class Config(object):
-    def __init__(self, task, mode, model):    
+    def __init__(self, args):    
 
-        self.task = task
-        self.mode = mode
-        self.model_name = model
-        self.bert = 'prajjwal1/bert-small'
+        self.task = args.task
+        self.mode = args.mode
+        self.model_type = args.model
+        self.bert_mname = 'prajjwal1/bert-small'
         self.ckpt = f"ckpt/{self.task}_{self.model_name}.pt"
-        self.src, self.trg = task[:2], task[2:]
+        self.src, self.trg = self.task[:2], self.task[2:]
         
         self.clip = 1
+        self.max_len = 300
         self.n_epochs = 10
         self.batch_size = 16
-        self.learning_rate = 1e-4
+        self.learning_rate = 5e-4
         self.iters_to_accumulate = 4
 
         self.n_heads = 8
         self.n_layers = 3
-        self.dropout_ratio = 0.1
         self.pff_dim = 512
         self.hidden_dim = 512
+        self.dropout_ratio = 0.1
         self.emb_dim = self.hidden_dim // 2
 
         use_cuda = torch.cuda.is_available()
@@ -52,17 +55,17 @@ class Config(object):
 
 
 def load_model(config):
-    if config.model_name == 'simple':
+    if config.model_type == 'simple':
         model = SimpleModel(config)
 
-    elif config.model_name == 'fused':
+    elif config.model_type == 'fused':
         model = FusedModel(config)
     
-    elif config.model_name == 'generation':
-        encoder = BertGenerationEncoder.from_pretrained(config.bert, 
+    elif config.model_type == 'generation':
+        encoder = BertGenerationEncoder.from_pretrained(config.bert_mname, 
                                                         bos_token_id=config.bos_id,
                                                         eos_token_id=config.eos_id)
-        decoder = BertGenerationDecoder.from_pretrained(config.bert, 
+        decoder = BertGenerationDecoder.from_pretrained(config.bert_mname, 
                                                         add_cross_attention=True, 
                                                         is_decoder=True,
                                                         bos_token_id=config.bos_id,
@@ -134,12 +137,17 @@ def inference(model, tokenizer):
             break        
 
         #convert user input_seq into model input_ids
-        input_ids = tokenizer(input_seq)['input_ids']
-        output_ids = model.generate(input_ids, beam_size=4, max_new_tokens=300, use_cache=True)
-        output_seq = tokenizer.decode(output_ids, skip_special_tokens=True)
+        encodings = tokenizer(input_seq)
+
+        if isinstance(model, EncoderDecoderModel):
+            preds = model.generate(**encodings, use_cache=True)
+        else:
+            preds = model.generate(**encodings)
+
+        preds = tokenizer.decode(preds, skip_special_tokens=True)
 
         #Search Output Sequence
-        print(f"Model Out Sequence >> {output_seq}")       
+        print(f"Model Out Sequence >> {preds}")       
 
 
 
@@ -147,7 +155,7 @@ def inference(model, tokenizer):
 def main(args):
     set_seed(42)
     config = Config(args.task, args.task)
-    tokenizer = BertTokenizerFast.from_pretrained(config.model_name, model_max_length=300)
+    tokenizer = BertTokenizerFast.from_pretrained(config.bert_mname, model_max_length=300)
 
     setattr(config, 'vocab_size', tokenizer.vocab_size)
     setattr(config, 'pad_id', tokenizer.pad_token_id)
