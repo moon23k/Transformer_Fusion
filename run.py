@@ -61,7 +61,7 @@ def load_model(config):
     elif config.model_type == 'fused':
         model = FusedModel(config)
     
-    elif config.model_type == 'generation':
+    elif config.model_type == 'enc_dec':
         encoder = BertGenerationEncoder.from_pretrained(config.bert_mname, 
                                                         bos_token_id=config.bos_id,
                                                         eos_token_id=config.eos_id)
@@ -71,6 +71,7 @@ def load_model(config):
                                                         bos_token_id=config.bos_id,
                                                         eos_token_id=config.eos_id)
         model = EncoderDecoderModel(encoder=encoder, decoder=decoder)        
+        model.config.encoder.decoder_start_token_id = config.bos_id
         model.config.decoder.decoder_start_token_id = config.bos_id
         model.config.pad_token_id = config.pad_id
         model.config.vocab_size = config.vocab_size
@@ -185,6 +186,6 @@ if __name__ == '__main__':
 
     assert args.task in ['ende', 'deen']
     assert args.mode in ['train', 'test', 'inference']
-    assert args.model in ['simple', 'fused', 'generation']    
+    assert args.model in ['simple', 'fused', 'enc_dec']    
 
     main(args)

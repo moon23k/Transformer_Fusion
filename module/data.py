@@ -5,8 +5,9 @@ from torch.nn.utils.rnn import pad_sequence
 
 
 class Dataset(torch.utils.data.Dataset):
-    def __init__(self, split):
+    def __init__(self, config, split):
         super().__init__()
+        self.task = config.task
         self.data = self.load_data(split)
 
     @staticmethod
@@ -19,13 +20,16 @@ class Dataset(torch.utils.data.Dataset):
         return len(self.data)
     
     def __getitem__(self, idx):
-        en_ids = self.data[idx]['en_ids']
-        en_mask = self.data[idx]['en_mask']
-
-        de_ids = self.data[idx]['de_ids']
-        de_mask = self.data[idx]['de_mask']
+        if self.task == 'ende':
+            input_ids = self.data[idx]['en_ids']
+            attention_mask = self.data[idx]['en_mask']
+            labels = self.data[idx]['de_ids']
+        else:
+            input_ids = self.data[idx]['de_ids']
+            attention_mask = self.data[idx]['de_mask']
+            labels = self.data[idx]['en_ids']
         
-        return en_ids, en_mask, de_ids, de_mask
+        return input_ids, attention_mask, labels
 
 
 def pad_batch(batch_list, pad_id):
@@ -39,29 +43,22 @@ def load_dataloader(config, split):
     pad_id = config.pad_id    
 
     def collate_fn(batch):
-        en_ids_batch, en_mask_batch = [], []
-        de_ids_batch, de_mask_batch = [], []
+        ids_batch, masks_batch, labels_batch = [], [], []
 
-        for en_ids, en_mask, de_ids, de_mask in batch:
+        for ids, masks, labels in batch:
+            ids_batch.append(torch.LongTensor(ids)) 
+            masks_batch.append(torch.LongTensor(masks))
+            labels_batch.append(torch.LongTensor(labels))
 
-            en_ids_batch.append(torch.LongTensor(en_ids))
-            en_mask_batch.append(torch.LongTensor(en_mask))
+        ids_batch = pad_batch(ids_batch, pad_id)
+        masks_batch = pad_batch(masks_batch, pad_id)
+        labels_batch = pad_batch(labels_batch, pad_id)
 
-            de_ids_batch.append(torch.LongTensor(de_ids))
-            de_mask_batch.append(torch.LongTensor(de_mask))
+        return {'input_ids': ids_batch, 
+                'attention_mask': masks_batch,
+                'labels': labels_batch}
 
-        en_ids_batch = pad_batch(en_ids_batch, pad_id)
-        en_mask_batch = pad_batch(en_mask_batch, pad_id)
-        
-        de_ids_batch = pad_batch(de_ids_batch, pad_id)
-        de_mask_batch = pad_batch(de_mask_batch, pad_id)
-
-        return {'en_ids': en_ids_batch, 
-                'en_mask': en_mask_batch,
-                'de_ids': de_ids_batch, 
-                'de_mask': de_mask_batch}
-
-    return DataLoader(Dataset(split), 
+    return DataLoader(Dataset(config, split), 
                       batch_size=config.batch_size, 
                       shuffle=True,
                       collate_fn=collate_fn,

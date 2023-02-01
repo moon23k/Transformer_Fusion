@@ -176,6 +176,7 @@ class SimpleModel(nn.Module):
         self.pad_id = config.pad_id
         self.device = config.device
         self.max_len = config.max_len
+        self.vocab_size = config.vocab_size
 
         self.encoder = BertModel.from_pretrained(config.bert_mname)
         self.decoder = Decoder(config)
@@ -197,11 +198,10 @@ class SimpleModel(nn.Module):
         return self.pad_mask(x) & subsequent_mask.to(self.device)
 
 
-    #Code borrowed from huggingface
     def shift_right(self, labels):
-        shifted = labels.new_zeros(labels.shape)
-        shifted[:, 1:] = labels[:, :-1].clone()
-        shifted[:, 0] = self.pad_id #or self.decoder_start_token_id
+        shifted = labels.new_zeros(labels.size(0), labels.size(1)-1)
+        shifted = labels[:, :-1].clone()
+        #shifted[:, 0] = self.pad_id #or self.decoder_start_token_id
         return shifted
 
 
@@ -229,7 +229,7 @@ class SimpleModel(nn.Module):
     def forward(self, input_ids, attention_mask, labels):
         shifted_labels = self.shift_right(labels)
 
-        e_mask = self.pad_mask(input_ids), 
+        e_mask = self.pad_mask(input_ids)
         d_mask = self.dec_mask(shifted_labels)
         
         memory = self.encoder(input_ids=input_ids, 
@@ -238,6 +238,6 @@ class SimpleModel(nn.Module):
         
         logits = self.fc_out(d_out)
         loss = self.criterion(logits.view(-1, self.vocab_size), 
-                              labels[:, 1:].view(-1))
+                              labels[:, 1:].contiguous().view(-1))
 
         return self.outputs(logits, loss)

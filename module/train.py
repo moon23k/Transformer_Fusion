@@ -57,10 +57,9 @@ class Trainer:
             bert_optimizer = optim.AdamW(params=self.model.bert.parameters(), lr=self.lr * 0.1)
 
 
-        elif self.model_type == 'generation':
-            optimizer = optim.AdamW(params=self.model.parameters(), lr=self.lr)
+        elif self.model_type == 'enc_dec':
+            optimizer = optim.AdamW(params=self.model.parameters(), lr=self.lr * 0.1)
             bert_optimizer = None
-
 
         return optimizer, bert_optimizer
         
@@ -84,15 +83,6 @@ class Trainer:
         elapsed_min = int(elapsed_time / 60)
         elapsed_sec = int(elapsed_time - (elapsed_min * 60))
         return f"{elapsed_min}m {elapsed_sec}s"
-
-
-
-    def split_batch(self, batch):
-        input_ids = batch[f'{self.src}_ids'].to(self.device)
-        attention_mask =  batch[f'{self.src}_mask'].to(self.device)
-        labels = batch[f'{self.trg}_ids'].to(self.device)
-        
-        return input_ids, attention_mask, labels
 
 
 
@@ -133,10 +123,12 @@ class Trainer:
         tot_len = len(self.train_dataloader)
 
         for idx, batch in enumerate(self.train_dataloader):
-            input_ids, attention_mask, labels = self.split_batch(batch)
+            
+            input_ids = batch['input_ids'].to(self.device)
+            attention_mask = batch['attention_mask'].to(self.device)
+            labels = batch['labels'].to(self.device)
 
             with torch.autocast(device_type=self.device_type, dtype=torch.float16):
-
                 loss = self.model(input_ids=input_ids, 
                                   attention_mask=attention_mask,
                                   labels=labels).loss
@@ -149,7 +141,7 @@ class Trainer:
             if (idx + 1) % self.iters_to_accumulate == 0:
                 #Gradient Clipping
                 self.scaler.unscale_(self.optimizer)
-                if self.model_type != 'generation':
+                if self.model_type != 'enc_dec':
                     self.scaler.unscale_(self.bert_optimizer)
 
                 nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.clip)
@@ -157,13 +149,13 @@ class Trainer:
 
                 #Gradient Update & Scaler Update
                 self.scaler.step(self.optimizer)
-                if self.model_type != 'generation':
+                if self.model_type != 'enc_dec':
                     self.scaler.step(self.bert_optimizer)
                 
                 self.scaler.update()
                 
                 self.optimizer.zero_grad()
-                if self.model_type != 'generation':
+                if self.model_type != 'enc_dec':
                     self.bert_optimizer.zero_grad()
 
             epoch_loss += loss.item()
@@ -181,14 +173,15 @@ class Trainer:
         
         with torch.no_grad():
             for _, batch in enumerate(self.valid_dataloader):   
-                input_ids, attention_mask, labels = self.split_batch(batch)           
+
+                input_ids = batch['input_ids'].to(self.device)
+                attention_mask = batch['attention_mask'].to(self.device)
+                labels = batch['labels'].to(self.device)
                 
                 with torch.autocast(device_type=self.device_type, dtype=torch.float16):
-
                     loss = self.model(input_ids=input_ids, 
                                       attention_mask=attention_mask,
                                       labels=labels).loss
-
                 epoch_loss += loss.item()
         
         epoch_loss = round(epoch_loss / tot_len, 3)
