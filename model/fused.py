@@ -135,7 +135,8 @@ class FusedModel(nn.Module):
 
         self.criterion = nn.CrossEntropyLoss(ignore_index=config.pad_id, 
                                              label_smoothing=0.1).to(self.device)
-        self.outputs = namedtuple('outputs', ('logit', 'loss'))
+        self.outputs = namedtuple('outputs', ('logits', 'loss'))
+
 
     def pad_mask(self, x):
         return (x != self.pad_id).unsqueeze(1).unsqueeze(2)
@@ -146,6 +147,14 @@ class FusedModel(nn.Module):
         attn_shape = (1, seq_len, seq_len)
         subsequent_mask = torch.triu(torch.ones(attn_shape), diagonal=1).type(torch.uint8) == 0
         return self.pad_mask(x) & subsequent_mask.to(self.device)
+
+
+    #Code borrowed from huggingface
+    def shift_right(self, labels):
+        shifted = labels.new_zeros(labels.shape)
+        shifted[:, 1:] = labels[:, :-1].clone()
+        shifted[:, 0] = self.pad_id #or self.decoder_start_token_id
+        return shifted
 
 
     def genreate(self, input_ids, attention_mask):
@@ -159,24 +168,29 @@ class FusedModel(nn.Module):
         for i in range(1, self.max_len):
             d_mask = self.dec_mask(preds)
             dec_out = self.decoder(preds, memory, e_mask, d_mask)
-            logit = self.fc_out(dec_out).argmax(-1)
+            logits = self.fc_out(dec_out).argmax(-1)
 
-            if logit.sum() == 0:
+            if logits.sum() == 0:
                 break
 
-            preds[i] = logit
+            preds[i] = logits
 
         return preds.tolist()
 
 
     def forward(self, input_ids, attention_mask, labels):
-        e_mask, d_mask = self.pad_mask(input_ids), self.dec_mask(labels)
+        shifted_labels = self.shift_right(labels)
+
+        e_mask = self.pad_mask(input_ids), 
+        d_mask = self.dec_mask(shifted_labels)
+        
         bert_out = self.bert(input_ids, attention_mask).last_hidden_state
 
         memory = self.encoder(input_ids, e_mask, bert_out)
-        dec_out = self.decoder(labels, memory, e_mask, d_mask, bert_out)
+        d_out = self.decoder(shifted_labels, memory, e_mask, d_mask, bert_out)
         
-        logit = self.fc_out(dec_out)
-        loss = self.criterion(logit, labels)
+        logits = self.fc_out(d_out)
+        loss = self.criterion(logits.view(-1, self.vocab_size), 
+                              labels[:, 1:].view(-1))
 
-        return self.outputs(logit, loss)
+        return self.outputs(logits, loss)

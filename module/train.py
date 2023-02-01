@@ -17,7 +17,7 @@ class Trainer:
         self.clip = config.clip
         self.device = config.device
         self.n_epochs = config.n_epochs
-        self.model_name = config.model_name
+        self.model_type = config.model_type
         self.vocab_size = config.vocab_size
 
         self.device_type = config.device_type
@@ -31,7 +31,7 @@ class Trainer:
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min')
                 
         self.ckpt = config.ckpt
-        self.record_path = f"ckpt/{config.task}_{config.model_name}.json"
+        self.record_path = f"ckpt/{config.task}_{config.model_type}.json"
         self.record_keys = ['epoch', 'train_loss', 'train_ppl',
                             'valid_loss', 'valid_ppl', 
                             'learning_rate', 'train_time']
@@ -40,7 +40,7 @@ class Trainer:
 
     def get_optims(self):
 
-        if self.model_name == 'simple':
+        if self.model_type == 'simple':
             optim_params = list(self.model.decoder.parameters()) + \
                            list(self.model.fc_out.parameters())
 
@@ -48,7 +48,7 @@ class Trainer:
             bert_optimizer = optim.AdamW(params=self.model.encoder.parameters(), lr=self.lr * 0.1)
 
 
-        elif self.model_name == 'fused':
+        elif self.model_type == 'fused':
             optim_params = list(self.model.encoder.parameters()) + \
                            list(self.model.decoder.parameters()) + \
                            list(self.model.fc_out.parameters())
@@ -57,7 +57,7 @@ class Trainer:
             bert_optimizer = optim.AdamW(params=self.model.bert.parameters(), lr=self.lr * 0.1)
 
 
-        elif self.model_name == 'generation':
+        elif self.model_type == 'generation':
             optimizer = optim.AdamW(params=self.model.parameters(), lr=self.lr)
             bert_optimizer = None
 
@@ -137,9 +137,9 @@ class Trainer:
 
             with torch.autocast(device_type=self.device_type, dtype=torch.float16):
 
-                loss = self.model(input_ids = input_ids, 
-                                  decoder_input_ids = labels,
-                                  labels = labels).loss
+                loss = self.model(input_ids=input_ids, 
+                                  attention_mask=attention_mask,
+                                  labels=labels).loss
 
                 loss = loss / self.iters_to_accumulate
             
@@ -149,7 +149,7 @@ class Trainer:
             if (idx + 1) % self.iters_to_accumulate == 0:
                 #Gradient Clipping
                 self.scaler.unscale_(self.optimizer)
-                if self.model_name != 'generation':
+                if self.model_type != 'generation':
                     self.scaler.unscale_(self.bert_optimizer)
 
                 nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.clip)
@@ -157,13 +157,13 @@ class Trainer:
 
                 #Gradient Update & Scaler Update
                 self.scaler.step(self.optimizer)
-                if self.model_name != 'generation':
+                if self.model_type != 'generation':
                     self.scaler.step(self.bert_optimizer)
                 
                 self.scaler.update()
                 
                 self.optimizer.zero_grad()
-                if self.model_name != 'generation':
+                if self.model_type != 'generation':
                     self.bert_optimizer.zero_grad()
 
             epoch_loss += loss.item()
@@ -185,9 +185,9 @@ class Trainer:
                 
                 with torch.autocast(device_type=self.device_type, dtype=torch.float16):
 
-                    loss = self.model(input_ids = input_ids, 
-                                      decoder_input_ids = labels,
-                                      labels = labels).loss
+                    loss = self.model(input_ids=input_ids, 
+                                      attention_mask=attention_mask,
+                                      labels=labels).loss
 
                 epoch_loss += loss.item()
         

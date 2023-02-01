@@ -22,14 +22,14 @@ class Config(object):
         self.mode = args.mode
         self.model_type = args.model
         self.bert_mname = 'prajjwal1/bert-small'
-        self.ckpt = f"ckpt/{self.task}_{self.model_name}.pt"
+        self.ckpt = f"ckpt/{self.task}_{self.model_type}.pt"
         self.src, self.trg = self.task[:2], self.task[2:]
         
         self.clip = 1
+        self.lr = 5e-4
         self.max_len = 300
         self.n_epochs = 10
         self.batch_size = 16
-        self.learning_rate = 5e-4
         self.iters_to_accumulate = 4
 
         self.n_heads = 8
@@ -75,7 +75,7 @@ def load_model(config):
         model.config.pad_token_id = config.pad_id
         model.config.vocab_size = config.vocab_size
 
-    print(f"BERT {config.model_name.upper()} Model for has loaded")
+    print(f"BERT {config.model_type.upper()} Model for has loaded")
 
     
     if config.mode != 'train':
