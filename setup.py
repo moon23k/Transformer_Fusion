@@ -4,7 +4,7 @@ from transformers import BertTokenizerFast
 
 
 
-def process(orig_data, tokenizer, volumn=36000):
+def process(orig_data, tokenizer, volumn=34000):
     min_len = 10 
     max_len = 300
     max_diff = 50
@@ -45,7 +45,7 @@ def process(orig_data, tokenizer, volumn=36000):
 
 def save_data(data_obj):
     #split data into train/valid/test sets
-    train, valid, test = data_obj[:-6000], data_obj[-6000:-3000], data_obj[-3000:]
+    train, valid, test = data_obj[:-4000], data_obj[-4000:-1000], data_obj[-1000:]
     data_dict = {k:v for k, v in zip(['train', 'valid', 'test'], [train, valid, test])}
 
     for key, val in data_dict.items():
@@ -56,7 +56,7 @@ def save_data(data_obj):
 
 
 def main():
-    tokenizer = BertTokenizerFast.from_pretrained('prajjwal1/bert-small', model_max_length=300)
+    tokenizer = BertTokenizerFast.from_pretrained('prajjwal1/bert-small', model_max_length=128)
     orig = load_dataset('wmt14', 'de-en', split='train')['translation']
     processed = process(orig, tokenizer)
     save_data(processed)

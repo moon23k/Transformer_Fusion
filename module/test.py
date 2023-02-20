@@ -1,5 +1,5 @@
 import torch, time, evaluate
-
+from tqdm import tqdm
 
 
 class Tester:
@@ -29,10 +29,10 @@ class Tester:
         
         start_time = time.time()
         with torch.no_grad():
-            for _, batch in enumerate(self.dataloader):   
+            for batch in tqdm(self.dataloader):   
                 
-                input_ids = batch[f'{self.src}_ids'].to(self.device)
-                labels = batch[f'{self.trg}_ids'].to(self.device)
+                input_ids = batch['input_ids'].to(self.device)
+                labels = batch['labels'].to(self.device)
                                 
                 preds = self.model.generate(input_ids, max_new_tokens=300, use_cache=True)
                 
