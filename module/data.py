@@ -28,17 +28,14 @@ class Dataset(torch.utils.data.Dataset):
         return input_ids, attention_mask, labels
 
 
-def pad_batch(batch_list, pad_id):
-    return pad_sequence(batch_list,
-                        batch_first=True,
-                        padding_value=pad_id)
 
 
-def load_dataloader(config, split):
-    global pad_id
-    pad_id = config.pad_id    
+class Collator(object):
+    def __init__(self, config):
+        self.task = config.task
+        self.pad_id = config.pad_id
 
-    def collate_fn(batch):
+    def __call__(self, batch):
         ids_batch, masks_batch, labels_batch = [], [], []
 
         for ids, masks, labels in batch:
@@ -54,9 +51,14 @@ def load_dataloader(config, split):
                 'attention_mask': masks_batch,
                 'labels': labels_batch}
 
+    def pad_batch(batch):
+        return pad_sequence(batch, batch_first=True, padding_value=self.pad_id)
+
+
+def load_dataloader(config, split):
     return DataLoader(Dataset(config.task, split), 
                       batch_size=config.batch_size, 
-                      shuffle=True,
+                      shuffle=True if config.mode=='train' else False,
                       collate_fn=collate_fn,
-                      num_workers=2,
-                      pin_memory=True)
+                      pin_memory=True,
+                      num_workers=2)
