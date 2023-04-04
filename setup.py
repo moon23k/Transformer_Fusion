@@ -5,32 +5,28 @@ from transformers import BertTokenizerFast
 
 
 def process(orig_data, tokenizer, volumn=34000):
-    min_len = 10 
-    max_len = 300
-    max_diff = 50
-
-    volumn_cnt = 0
-    processed = []
+    volumn_cnt, processed = 0, []
+    min_len, max_len, max_diff = 10, 300, 50
+    
     
     for elem in orig_data:
-        en_seq, de_seq = elem['en'].lower(), elem['de'].lower()
-        en_len, de_len = len(en_seq), len(de_seq)
+        src, trg = elem['en'].lower(), elem['de'].lower()
+        src_len, trg_len = len(src), len(trg)
 
         #define filtering conditions
-        min_condition = (en_len >= min_len) & (de_len >= min_len)
-        max_condition = (en_len <= max_len) & (de_len <= max_len)
-        dif_condition = abs(en_len - de_len) < max_diff
+        min_condition = (src_len >= min_len) & (trg_len >= min_len)
+        max_condition = (src_len <= max_len) & (trg_len <= max_len)
+        dif_condition = abs(src_len - trg_len) < max_diff
 
         if max_condition & min_condition & dif_condition:
             temp_dict = dict()
             
-            en_tokenized = tokenizer(en_seq, max_length=max_len, truncation=True)
-            de_tokenized = tokenizer(de_seq, max_length=max_len, truncation=True)
+            src_tokenized = tokenizer(src)
+            trg_tokenized = tokenizer(trg)
 
-            temp_dict['en_ids'] = en_tokenized['input_ids']
-            temp_dict['en_mask'] = en_tokenized['attention_mask']
-            temp_dict['de_ids'] = de_tokenized['input_ids']
-            temp_dict['de_mask'] = de_tokenized['attention_mask']
+            temp_dict['input_ids'] = en_tokenized['input_ids']
+            temp_dict['attention_mask'] = en_tokenized['attention_mask']
+            temp_dict['labels'] = de_tokenized['input_ids']
             
             processed.append(temp_dict)
             
@@ -56,7 +52,7 @@ def save_data(data_obj):
 
 
 def main():
-    tokenizer = BertTokenizerFast.from_pretrained('prajjwal1/bert-small', model_max_length=128)
+    tokenizer = BertTokenizerFast.from_pretrained('prajjwal1/bert-small', model_max_length=512)
     orig = load_dataset('wmt14', 'de-en', split='train')['translation']
     processed = process(orig, tokenizer)
     save_data(processed)

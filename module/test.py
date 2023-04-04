@@ -1,5 +1,6 @@
-import torch, time, evaluate
 from tqdm import tqdm
+import torch, time, evaluate
+
 
 
 class Tester:
@@ -7,9 +8,7 @@ class Tester:
         super(Tester, self).__init__()
         
         self.model = model
-        self.src = config.src
-        self.trg = config.trg
-        self.task = config.task
+        self.max_len = config.max_len
         self.tokenizer = tokenizer
         self.device = config.device
         self.dataloader = test_dataloader
@@ -32,12 +31,10 @@ class Tester:
             for batch in tqdm(self.dataloader):   
                 
                 input_ids = batch['input_ids'].to(self.device)
+                attention_mask = batch['attention_mask'].to(self.device)
                 labels = batch['labels'].to(self.device)
                                 
-                preds = self.model.generate(input_ids, max_new_tokens=300, use_cache=True)
-                
-                preds = self.tokenizer.batch_decode(preds, skip_special_tokens=True)
-                labels = self.tokenizer.batch_decode(labels, skip_special_tokens=True)
+                preds = self.model.generate(input_ids, attention_mask, max_new_tokens=self.max_len, use_cache=True)
 
                 metric_module.add_batch(predictions=preds, 
                                         references=[[l] for l in labels])    
@@ -47,4 +44,3 @@ class Tester:
         print('Test Results')
         print(f"  >> BLEU Score: {bleu_score:.2f}")
         print(f"  >> Spent Time: {self.measure_time(start_time, time.time())}")
-    

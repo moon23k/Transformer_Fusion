@@ -5,10 +5,8 @@ from torch.nn.utils.rnn import pad_sequence
 
 
 class Dataset(torch.utils.data.Dataset):
-    def __init__(self, task, split):
+    def __init__(self, split):
         super().__init__()
-        
-        self.src, self.trg = task[:2], task[2:]
         self.data = self.load_data(split)
 
     @staticmethod
@@ -21,9 +19,9 @@ class Dataset(torch.utils.data.Dataset):
         return len(self.data)
     
     def __getitem__(self, idx):
-        input_ids = self.data[idx][f'{self.src}_ids']
-        attention_mask = self.data[idx][f'{self.src}_mask']
-        labels = self.data[idx][f'{self.trg}_ids']
+        input_ids = self.data[idx]['input_ids']
+        attention_mask = self.data[idx]['attention_mask']
+        labels = self.data[idx]['labels']
         
         return input_ids, attention_mask, labels
 
@@ -56,9 +54,9 @@ class Collator(object):
 
 
 def load_dataloader(config, split):
-    return DataLoader(Dataset(config.task, split), 
+    return DataLoader(Dataset(split), 
                       batch_size=config.batch_size, 
                       shuffle=True if config.mode=='train' else False,
-                      collate_fn=collate_fn,
+                      collate_fn=Collator(config),
                       pin_memory=True,
                       num_workers=2)

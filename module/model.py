@@ -37,12 +37,15 @@ def load_model(config):
         encoder = BertGenerationEncoder.from_pretrained(config.bert_mname, 
                                                         bos_token_id=config.bos_id,
                                                         eos_token_id=config.eos_id)
+
         decoder = BertGenerationDecoder.from_pretrained(config.bert_mname, 
                                                         add_cross_attention=True, 
                                                         is_decoder=True,
                                                         bos_token_id=config.bos_id,
                                                         eos_token_id=config.eos_id)
+
         model = EncoderDecoderModel(encoder=encoder, decoder=decoder)        
+
         model.config.encoder.decoder_start_token_id = config.bos_id
         model.config.decoder.decoder_start_token_id = config.bos_id
         model.config.pad_token_id = config.pad_id

@@ -16,12 +16,10 @@ from transformers import (set_seed,
 class Config(object):
     def __init__(self, args):    
 
-        self.task = args.task
         self.mode = args.mode
         self.model_type = args.model
         self.bert_mname = 'prajjwal1/bert-small'
         self.ckpt = f"ckpt/{self.task}_{self.model_type}.pt"
-        self.src, self.trg = self.task[:2], self.task[2:]
         
         self.clip = 1
         self.lr = 5e-5
@@ -32,7 +30,7 @@ class Config(object):
 
         self.n_heads = 8
         self.n_layers = 3
-        self.pff_dim = 512
+        self.pff_dim = 2048
         self.hidden_dim = 512
         self.dropout_ratio = 0.1
         self.emb_dim = self.hidden_dim // 2
@@ -50,19 +48,6 @@ class Config(object):
         for attribute, value in self.__dict__.items():
             print(f"* {attribute}: {value}")
 
-
-
-def train(config, model):
-    train_dataloader = load_dataloader(config, 'train')
-    valid_dataloader = load_dataloader(config, 'valid')
-    trainer = Trainer(config, model, train_dataloader, valid_dataloader)
-    trainer.train()
-
-
-def test(config, model, tokenizer):
-    test_dataloader = load_dataloader(config, 'test')
-    tester = Tester(config, model, tokenizer, test_dataloader)
-    tester.test()    
 
 
 
@@ -109,10 +94,15 @@ def main(args):
     model = load_model(config)    
 
     if config.mode == 'train':
-        train(config, model)
+        train_dataloader = load_dataloader(config, 'train')
+        valid_dataloader = load_dataloader(config, 'valid')
+        trainer = Trainer(config, model, train_dataloader, valid_dataloader)
+        trainer.train()
     
     elif config.mode == 'test':
-        test(config, model, tokenizer)
+        test_dataloader = load_dataloader(config, 'test')
+        tester = Tester(config, model, tokenizer, test_dataloader)
+        tester.test()    
     
     elif config.mode == 'inference':
         inference(model, tokenizer)
@@ -121,13 +111,11 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-task', required=True)
     parser.add_argument('-mode', required=True)
     parser.add_argument('-model', required=True)    
     
     args = parser.parse_args()
 
-    assert args.task in ['ende', 'deen']
     assert args.mode in ['train', 'test', 'inference']
     assert args.model in ['simple', 'fused', 'enc_dec']    
 

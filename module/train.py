@@ -11,9 +11,6 @@ class Trainer:
         
         self.model = model
         self.lr = config.lr
-        self.src = config.src
-        self.trg = config.trg
-        self.task = config.task
         self.clip = config.clip
         self.device = config.device
         self.n_epochs = config.n_epochs
@@ -120,7 +117,6 @@ class Trainer:
     def train_epoch(self):
         self.model.train()
         epoch_loss = 0
-        tot_len = len(self.train_dataloader)
 
         for idx, batch in enumerate(self.train_dataloader):
             
@@ -160,7 +156,7 @@ class Trainer:
 
             epoch_loss += loss.item()
         
-        epoch_loss = round(epoch_loss / tot_len, 3)
+        epoch_loss = round(epoch_loss / len(self.train_dataloader), 3)
         epoch_ppl = round(math.exp(epoch_loss), 3)    
         return epoch_loss, epoch_ppl
     
@@ -169,7 +165,6 @@ class Trainer:
     def valid_epoch(self):
         self.model.eval()
         epoch_loss = 0
-        tot_len = len(self.valid_dataloader)
         
         with torch.no_grad():
             for _, batch in enumerate(self.valid_dataloader):   
@@ -184,6 +179,6 @@ class Trainer:
                                       labels=labels).loss
                 epoch_loss += loss.item()
         
-        epoch_loss = round(epoch_loss / tot_len, 3)
+        epoch_loss = round(epoch_loss / len(self.valid_dataloader), 3)
         epoch_ppl = round(math.exp(epoch_loss), 3)        
         return epoch_loss, epoch_ppl
