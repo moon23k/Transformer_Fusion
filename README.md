@@ -31,11 +31,11 @@ This repo implemnets three different methods to use BERT on NLG Tasks and compar
 | &emsp; **Dataset desc**                              | &emsp; **Model Config**                 | &emsp; **Training Config**               |
 | :---                                                 | :---                                    | :---                                     |
 | **`Dataset:`** &hairsp; `WMT14 En-De`                | **`Input Dimension:`** `30,000`         | **`Epochs:`** `10`                       |
-| -                                                    | **`Output Dimension:`** `30,000`        | **`Batch Size:`** `32`                   |
-| **`Total Dataset Volumn:`** &hairsp; `36,000` &emsp; | **`Embedding Dimension:`** `256` &emsp; | **`Learning Rate:`** `5e-4`              |
-| **`Train Dataset Volumn:`** &hairsp; `30,000`        | **`Hidden Dimension:`** `512`           | **`iters_to_accumulate:`** `4`           |
-| **`Valid  Dataset Volumn:`** &hairsp; `3,000`        | **`N Layers:`** `2`                     | **`Gradient Clip Max Norm:`** `1` &emsp; |
-| **`Test  Dataset Volumn:`** &hairsp; `3,000`         | **`Drop-out Ratio:`** `0.1`             | **`Apply AMP:`** `True`                  |
+| **`Total Dataset Volumn:`** &hairsp; `36,000` &emsp; | **`Output Dimension:`** `30,000`        | **`Batch Size:`** `32`                   |
+| **`Train Dataset Volumn:`** &hairsp; `30,000`        | **`Embedding Dimension:`** `256` &emsp; | **`Learning Rate:`** `5e-4`              |
+| **`Valid  Dataset Volumn:`** &hairsp; `3,000`        | **`Hidden Dimension:`** `512`           | **`iters_to_accumulate:`** `4`           |
+| **`Test  Dataset Volumn:`** &hairsp; `3,000`         | **`N Layers:`** `2`                     | **`Gradient Clip Max Norm:`** `1` &emsp; |
+|                                                      | **`Drop-out Ratio:`** `0.1`             | **`Apply AMP:`** `True`                  |
 
 
 <br>
@@ -43,19 +43,17 @@ This repo implemnets three different methods to use BERT on NLG Tasks and compar
 
 ## Results
 
-| Model | Lang Pair | Best Validation Loss | BLEU Score |
-| :---: | :---: | :---: | :---: |
-| BERT Simple     | En-De | - | - |
-| BERT Simple     | De-En | - | - |
-| BERT Fused      | En-De | - | 34.41 |
-| BERT Fused      | De-En | - | 11.71 |
-| BERT Generation | En-De | - | - |
-| BERT Generation | De-En | - | - |
+| Model | Best Validation Loss | BLEU Score |
+| :---: | :---: | :---: |
+| BERT Simple     | - | - |
+| BERT Fused      | - | 34.41 |
+| BERT Generation | - | - |
 
 <br>
 <br>
 
 
 ## Reference
+* [BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding](https://arxiv.org/abs/1810.04805)
 * [Incorporating BERT into Neural Machine Translation](https://arxiv.org/abs/2002.06823)
 * [Leveraging Pre-trained Checkpoints for Sequence Generation Tasks](https://arxiv.org/abs/1907.12461)
