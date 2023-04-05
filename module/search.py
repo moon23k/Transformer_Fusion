@@ -19,7 +19,7 @@ class Search:
         self.pad_id = config.pad_id
         
         self.max_repeat = 5
-        self.max_len = config.pred_len
+        self.max_len = config.max_len
 
         self.Node = namedtuple('Node', ['prev_node', 'pred', 'log_prob', 'length'])
 
