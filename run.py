@@ -19,7 +19,7 @@ class Config(object):
         self.mode = args.mode
         self.model_type = args.model
         self.bert_mname = 'prajjwal1/bert-small'
-        self.ckpt = f"ckpt/{self.task}_{self.model_type}.pt"
+        self.ckpt = f"ckpt/{self.model_type}.pt"
         
         self.clip = 1
         self.lr = 5e-5
@@ -34,6 +34,9 @@ class Config(object):
         self.hidden_dim = 512
         self.dropout_ratio = 0.1
         self.emb_dim = self.hidden_dim // 2
+
+        self.early_stop = True
+        self.patience = 3
 
         use_cuda = torch.cuda.is_available()
         self.device_type = 'cuda' if use_cuda else 'cpu'

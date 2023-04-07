@@ -30,7 +30,6 @@ class Dataset(torch.utils.data.Dataset):
 
 class Collator(object):
     def __init__(self, config):
-        self.task = config.task
         self.pad_id = config.pad_id
 
     def __call__(self, batch):
@@ -41,15 +40,15 @@ class Collator(object):
             masks_batch.append(torch.LongTensor(masks))
             labels_batch.append(torch.LongTensor(labels))
 
-        ids_batch = pad_batch(ids_batch, pad_id)
-        masks_batch = pad_batch(masks_batch, pad_id)
-        labels_batch = pad_batch(labels_batch, pad_id)
+        ids_batch = self.pad_batch(ids_batch)
+        masks_batch = self.pad_batch(masks_batch)
+        labels_batch = self.pad_batch(labels_batch)
 
         return {'input_ids': ids_batch, 
                 'attention_mask': masks_batch,
                 'labels': labels_batch}
 
-    def pad_batch(batch):
+    def pad_batch(self, batch):
         return pad_sequence(batch, batch_first=True, padding_value=self.pad_id)
 
 

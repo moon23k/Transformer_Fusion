@@ -27,8 +27,11 @@ class Trainer:
         self.optimizer, self.bert_optimizer = self.get_optims()
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min')
                 
+        self.early_stop = config.early_stop
+        self.patience = config.patience
+                
         self.ckpt = config.ckpt
-        self.record_path = f"ckpt/{config.task}_{config.model_type}.json"
+        self.record_path = f"ckpt/{config.model_type}.json"
         self.record_keys = ['epoch', 'train_loss', 'train_ppl',
                             'valid_loss', 'valid_ppl', 
                             'learning_rate', 'train_time']
@@ -106,11 +109,22 @@ class Trainer:
                             'model_state_dict': self.model.state_dict(),
                             'optimizer_state_dict': self.optimizer.state_dict()},
                             self.ckpt)
+
+                #patience intialize
+                if self.early_stop:
+                    patience = self.patience
             
+            else:
+                if not self.early_stop:
+                    continue
+                patience -= 1
+                if not patience:
+                    print('\n--- Training Ealry Stopped ---')
+                    break
+
         #save train_records
         with open(self.record_path, 'w') as fp:
             json.dump(records, fp)
-
 
 
 

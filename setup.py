@@ -24,9 +24,9 @@ def process(orig_data, tokenizer, volumn=34000):
             src_tokenized = tokenizer(src)
             trg_tokenized = tokenizer(trg)
 
-            temp_dict['input_ids'] = en_tokenized['input_ids']
-            temp_dict['attention_mask'] = en_tokenized['attention_mask']
-            temp_dict['labels'] = de_tokenized['input_ids']
+            temp_dict['input_ids'] = src_tokenized['input_ids']
+            temp_dict['attention_mask'] = src_tokenized['attention_mask']
+            temp_dict['labels'] = trg_tokenized['input_ids']
             
             processed.append(temp_dict)
             

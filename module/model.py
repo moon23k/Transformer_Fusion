@@ -48,6 +48,8 @@ def load_model(config):
 
         model.config.encoder.decoder_start_token_id = config.bos_id
         model.config.decoder.decoder_start_token_id = config.bos_id
+        model.config.decoder_start_token_id = config.bos_id
+        
         model.config.pad_token_id = config.pad_id
         model.config.vocab_size = config.vocab_size
 
