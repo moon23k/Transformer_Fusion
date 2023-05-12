@@ -228,7 +228,6 @@ class SimpleModel(nn.Module):
 
     def forward(self, input_ids, attention_mask, labels):
         shifted_labels = self.shift_right(labels)
-
         e_mask = self.pad_mask(input_ids)
         d_mask = self.dec_mask(shifted_labels)
         
