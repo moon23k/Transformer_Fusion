@@ -1,6 +1,6 @@
 ## NMT BERT Fused
 
-The BERT is a pretrained language model, which consists only of Transformer's encoder layers. By Pre-Training from large datasets, the BERT develops its ability to understand languages. BERT has proved its power, showing sota performances on various NLU tasks. However it is difficult to use it to generation task, since BERT only consists of encoder layers. 
+The BERT is a well known pretrained language model, which consists only of Transformer's encoder layers. By Pre-Training from large datasets, the BERT develops its ability to understand languages. BERT has improved its power, showing Sota performances on various NLU tasks. However it is difficult to use it to generation task, since BERT only consists of encoder layers. 
 To mend this problem, there has been a series of researches to use BERT well on generative tasks.
 **`Incorporating BERT into Neural Machine Translation`** and **`Leveraging Pre-trained Checkpoints for Sequence Generation Tasks`** are representative studies.
 This repo implemnets three different methods to use BERT on NLG Tasks and compare the performance of each on Machine Translation Task.
@@ -9,26 +9,25 @@ This repo implemnets three different methods to use BERT on NLG Tasks and compar
 <br>
 
 ## Model desc 
-**BERT Simple**
-> As the name suggests, the simple model is literally the simplest structural model for applying BERT to the NLG Task. This model follows Transformer architecture, but the only difference is that it uses BERT as an Encoder. 
+**BERT Simple Seq2Seq Model**
+> As the name suggests, the BERT Simple Seq2Seq Model is literally the simplest structural model to apply BERT to the NLG Task. This model follows Transformer architecture, but the only difference is that it uses BERT as an Encoder.
 
 <br>
 
-**BERT Fused**
-
-
-<br>
-
-**BERT Generation Pre Trained Model**
-
+**BERT Fused Seq2Seq Model**
+> BERT Fused Seq2Seq Model follows the methodology that suggested on **`Incorporating BERT into Neural Machine Translation`** paper. The model fuses BERT's Last Hidden States Vector via Self Attention mechanism on its own Encoder & Decoder.
 
 <br>
-<br>
+
+**BERT Generation Model**
+> BERT Generation Model uses BERT both on Encoder & Decoder. The main idea of model structure borrowed from **`Leveraging Pre-trained Checkpoints for Sequence Generation Tasks`** paper and code implemetation based on Hugging Face's Transformers Library.
+
+<br><br>
 
 ## Experimental Setups in Common
 
 
-| &emsp; **Dataset desc**                              | &emsp; **Model Config**                 | &emsp; **Training Config**               |
+| &emsp; **Dataset Config**                            | &emsp; **Model Config**                 | &emsp; **Training Config**               |
 | :---                                                 | :---                                    | :---                                     |
 | **`Dataset:`** &hairsp; `WMT14 En-De`                | **`Input Dimension:`** `30,000`         | **`Epochs:`** `10`                       |
 | **`Total Dataset Volumn:`** &hairsp; `36,000` &emsp; | **`Output Dimension:`** `30,000`        | **`Batch Size:`** `32`                   |
