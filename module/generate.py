@@ -6,18 +6,19 @@ from collections import namedtuple
 
 
 
-class Search:
-    def __init__(self, config, model):
-        super(Search, self).__init__()
+class Generator:
+    def __init__(self, config, model, tokenizer):
+        super(Generator, self).__init__()
         
-        self.beam_size = 4
         self.model = model
+        self.tokenizer = tokenizer
         self.device = config.device
 
         self.bos_id = config.bos_id
         self.eos_id = config.eos_id
         self.pad_id = config.pad_id
         
+        self.beam_size = 4
         self.max_repeat = 5
         self.max_len = config.max_len
 

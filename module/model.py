@@ -1,9 +1,10 @@
 import os, torch
-from model.fused import FusedModel
-from model.simple import SimpleModel
-from transformers import (BertGenerationDecoder,
-                          BertGenerationEncoder,
-                          EncoderDecoderModel)
+from model import FusedModel, SimpleModel
+from transformers import (
+    BertGenerationDecoder,
+    BertGenerationEncoder,
+    EncoderDecoderModel
+)
 
 
 
@@ -34,15 +35,20 @@ def load_model(config):
         model = FusedModel(config)
     
     elif config.model_type == 'enc_dec':
-        encoder = BertGenerationEncoder.from_pretrained(config.bert_mname, 
-                                                        bos_token_id=config.bos_id,
-                                                        eos_token_id=config.eos_id)
+        
+        encoder = BertGenerationEncoder.from_pretrained(
+            config.bert_mname, 
+            bos_token_id=config.bos_id,
+            eos_token_id=config.eos_id
+        )
 
-        decoder = BertGenerationDecoder.from_pretrained(config.bert_mname, 
-                                                        add_cross_attention=True, 
-                                                        is_decoder=True,
-                                                        bos_token_id=config.bos_id,
-                                                        eos_token_id=config.eos_id)
+        decoder = BertGenerationDecoder.from_pretrained(
+            config.bert_mname, 
+            add_cross_attention=True, 
+            is_decoder=True,
+            bos_token_id=config.bos_id,
+            eos_token_id=config.eos_id
+        )
 
         model = EncoderDecoderModel(encoder=encoder, decoder=decoder)        
 

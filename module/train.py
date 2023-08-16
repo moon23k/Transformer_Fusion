@@ -142,9 +142,12 @@ class Trainer:
             labels = batch['labels'].to(self.device)
 
             with torch.autocast(device_type=self.device_type, dtype=torch.float16):
-                loss = self.model(input_ids=input_ids, 
-                                  attention_mask=attention_mask,
-                                  labels=labels).loss
+                
+                loss = self.model(
+                    input_ids=input_ids, 
+                    attention_mask=attention_mask,
+                    labels=labels
+                ).loss
 
                 loss = loss / self.iters_to_accumulate
             
@@ -191,9 +194,13 @@ class Trainer:
                 labels = batch['labels'].to(self.device)
                 
                 with torch.autocast(device_type=self.device_type, dtype=torch.float16):
-                    loss = self.model(input_ids=input_ids, 
-                                      attention_mask=attention_mask,
-                                      labels=labels).loss
+                    
+                    loss = self.model(
+                        input_ids=input_ids, 
+                        attention_mask=attention_mask,
+                        labels=labels
+                    ).loss
+
                 epoch_loss += loss.item()
         
         epoch_loss = round(epoch_loss / len(self.valid_dataloader), 3)

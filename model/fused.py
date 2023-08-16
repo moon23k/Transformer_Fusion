@@ -2,11 +2,14 @@ import torch
 import torch.nn as nn
 from collections import namedtuple
 from transformers import BertModel
-from model.simple import (clones, 
-                          LayerNorm,
-                          Embeddings, 
-                          MultiHeadAttention,
-                          PositionwiseFeedForward)
+from model.simple import (
+    clones, 
+    LayerNorm,
+    Embeddings, 
+    MultiHeadAttention,
+    PositionwiseFeedForward
+)
+
 
 
 class Sublayer(nn.Module):
@@ -132,7 +135,7 @@ class FusedModel(nn.Module):
         self.bert = BertModel.from_pretrained(config.bert_mname)
         self.encoder = Encoder(config)
         self.decoder = Decoder(config)
-        self.fc_out = nn.Linear(config.hidden_dim, config.vocab_size)
+        self.generator = nn.Linear(config.hidden_dim, config.vocab_size)
 
         self.criterion = nn.CrossEntropyLoss(ignore_index=config.pad_id, 
                                              label_smoothing=0.1).to(self.device)
@@ -168,7 +171,7 @@ class FusedModel(nn.Module):
         for i in range(1, self.max_len):
             d_mask = self.dec_mask(preds)
             dec_out = self.decoder(preds, memory, e_mask, d_mask)
-            logits = self.fc_out(dec_out).argmax(-1)
+            logits = self.generator(dec_out).argmax(-1)
 
             if logits.sum() == 0:
                 break
@@ -189,7 +192,7 @@ class FusedModel(nn.Module):
         memory = self.encoder(input_ids, e_mask, bert_out)
         d_out = self.decoder(shifted_labels, memory, e_mask, d_mask, bert_out)
         
-        logits = self.fc_out(d_out)
+        logits = self.generator(d_out)
         loss = self.criterion(logits.view(-1, self.vocab_size), 
                               labels[:, 1:].contiguous().view(-1))
 

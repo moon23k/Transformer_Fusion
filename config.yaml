@@ -1,0 +1,17 @@
+train:
+  n_epochs: 10
+  batch_size: 128
+  max_len: 512
+  clip: 1
+  iters_to_accumulate: 4
+  lr: 0.0005
+  early_stop: 1
+  patience: 3
+
+model:
+  n_heads: 8
+  n_layers: 3
+  pff_dim: 2048
+  hidden_dim: 512
+  dropout_ratio: 0.1
+  emb_dim: 256

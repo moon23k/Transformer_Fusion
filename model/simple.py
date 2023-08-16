@@ -180,7 +180,7 @@ class SimpleModel(nn.Module):
 
         self.encoder = BertModel.from_pretrained(config.bert_mname)
         self.decoder = Decoder(config)
-        self.fc_out = nn.Linear(config.hidden_dim, config.vocab_size)
+        self.generator = nn.Linear(config.hidden_dim, config.vocab_size)
 
         self.criterion = nn.CrossEntropyLoss(ignore_index=config.pad_id, 
                                              label_smoothing=0.1).to(self.device)
@@ -209,14 +209,19 @@ class SimpleModel(nn.Module):
         batch_size = input_ids.size(0)
         
         e_mask = self.pad_mask(input_ids)
-        memory = self.encoder(input_ids=input_ids, 
-                              attention_mask=attention_mask).last_hidden_state
+        
+        memory = self.encoder(
+            input_ids=input_ids, 
+            attention_mask=attention_mask
+        ).last_hidden_state
 
-        preds = torch.zeros(batch_size, self.max_len).to(self.device)
+        preds = torch.zeros(batch_size, self.max_len, dtype=torch.long)
+        preds = preds.fill_(self.pad_id).to(self.device)
+        
         for i in range(1, self.max_len):
             d_mask = self.dec_mask(preds)
             dec_out = self.decoder(preds, memory, e_mask, d_mask)
-            logits = self.fc_out(dec_out).argmax(-1)
+            logits = self.generator(dec_out).argmax(-1)
             
             if logits.sum() == 0:
                 break
@@ -235,7 +240,7 @@ class SimpleModel(nn.Module):
                               attention_mask=attention_mask).last_hidden_state
         d_out = self.decoder(shifted_labels, memory, e_mask, d_mask)
         
-        logits = self.fc_out(d_out)
+        logits = self.generator(d_out)
         loss = self.criterion(logits.view(-1, self.vocab_size), 
                               labels[:, 1:].contiguous().view(-1))
 
