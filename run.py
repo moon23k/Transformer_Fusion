@@ -32,6 +32,8 @@ class Config(object):
         else:
             self.device = torch.device('cuda' if use_cuda else 'cpu')
 
+        os.makedirs(f'ckpt/{self.task}', exist_ok=True)
+
 
     def update_attr(self, tokenizer):
         setattr(self, 'vocab_size', tokenizer.vocab_size)
@@ -76,12 +78,18 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('-task', required=True)
     parser.add_argument('-mode', required=True)
-    parser.add_argument('-model', required=True)    
+    parser.add_argument('-model', required=True)
+    parser.add_argument('-search', default='greedy', required=False)    
     
     args = parser.parse_args()
 
+    assert args.task in ['translation', 'dialogue', 'summarization']
     assert args.mode in ['train', 'test', 'inference']
-    assert args.model in ['simple', 'fused', 'enc_dec']    
+    assert args.model in ['simple', 'fused']
+    assert args.model in ['greedy', 'beam']
+
+    
 
     main(args)
