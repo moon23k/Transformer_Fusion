@@ -1,10 +1,5 @@
 import os, argparse, torch
-
-from transformers import (
-    set_seed,
-    BertTokenizerFast
-)
-
+from transformers import set_seed, AutoTokenizer
 from module import (
     load_dataloader,
     load_model,
@@ -21,8 +16,8 @@ class Config(object):
 
         self.mode = args.mode
         self.model_type = args.model
-        self.bert_mname = 'prajjwal1/bert-small'
-        self.ckpt = f"ckpt/{self.model_type}.pt"
+        self.plm_mname = 'albert-base-v2'
+        self.ckpt = f"ckpt/{self.model_type}_model.pt"
 
         use_cuda = torch.cuda.is_available()
         self.device_type = 'cuda' if use_cuda else 'cpu'
@@ -52,8 +47,8 @@ class Config(object):
 def main(args):
     set_seed(42)
     config = Config(args.task, args.task)
-    tokenizer = BertTokenizerFast.from_pretrained(
-        config.bert_mname, model_max_length=config.max_len
+    tokenizer = AutoTokenizer.from_pretrained(
+        config.plm_mname, model_max_length=config.max_len
     )
     config.update_attr(tokenizer)
 
@@ -87,7 +82,7 @@ if __name__ == '__main__':
 
     assert args.task in ['translation', 'dialogue', 'summarization']
     assert args.mode in ['train', 'test', 'inference']
-    assert args.model in ['simple', 'fused']
+    assert args.model in ['simple', 'fused', 'enc_dec']
     assert args.model in ['greedy', 'beam']
 
     

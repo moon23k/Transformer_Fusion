@@ -37,13 +37,13 @@ def load_model(config):
     elif config.model_type == 'enc_dec':
         
         encoder = BertGenerationEncoder.from_pretrained(
-            config.bert_mname, 
+            config.plm_mname, 
             bos_token_id=config.bos_id,
             eos_token_id=config.eos_id
         )
 
         decoder = BertGenerationDecoder.from_pretrained(
-            config.bert_mname, 
+            config.plm_mname, 
             add_cross_attention=True, 
             is_decoder=True,
             bos_token_id=config.bos_id,

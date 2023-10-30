@@ -178,12 +178,11 @@ class SimpleModel(nn.Module):
         self.max_len = config.max_len
         self.vocab_size = config.vocab_size
 
-        self.encoder = BertModel.from_pretrained(config.bert_mname)
+        self.encoder = BertModel.from_pretrained(config.plm_mname)
         self.decoder = Decoder(config)
         self.generator = nn.Linear(config.hidden_dim, config.vocab_size)
 
-        self.criterion = nn.CrossEntropyLoss(ignore_index=config.pad_id, 
-                                             label_smoothing=0.1).to(self.device)
+        self.criterion = nn.CrossEntropyLoss()
         self.outputs = namedtuple('outputs', ('logits', 'loss'))
 
 

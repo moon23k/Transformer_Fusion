@@ -24,7 +24,7 @@ class Dataset(torch.utils.data.Dataset):
     
 
     def __getitem__(self, idx):
-        return self.data[idx]['src'], self.data[idx]['trg']
+        return self.data[idx]['x'], self.data[idx]['y']
 
 
 
@@ -45,28 +45,24 @@ class Collator(object):
 
 
     def __call__(self, batch):
-        src_batch, trg_batch = zip(*batch)
+        x_batch, y_batch = zip(*batch)
 
-        src_encodings = self.tokenize(src_batch)
-        trg_encodings = self.tokenize(trg_batch)
+        x_encodings = self.tokenize(x_batch)
+        y_encodings = self.tokenize(y_batch)
 
-        return {'input_ids': src_encodings.input_ids, 
-                'attention_mask': src_encodings.attention_mask,
-                'labels': trg_encodings.input_ids}
+        return {'input_ids': x_encodings.input_ids, 
+                'attention_mask': x_encodings.attention_mask,
+                'labels': y_encodings.input_ids}
 
 
 
 
 def load_dataloader(config, tokenizer, split):
 
-    is_train = split == 'train'
-    batch_size = config.batch_size if is_train \
-                 else config.batch_size // 4
-
     return DataLoader(
         Dataset(split), 
-        batch_size=batch_size, 
-        shuffle=True if is_train else False,
+        batch_size=config.batch_size, 
+        shuffle=split == 'train',
         collate_fn=Collator(config, tokenizer),
         pin_memory=True,
         num_workers=2
