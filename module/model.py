@@ -1,5 +1,5 @@
 import os, torch
-from model import FusedModel, SimpleModel
+from model import EncModel, EncDecModel, FusionModel
 from transformers import (
     BertGenerationDecoder,
     BertGenerationEncoder,

@@ -1,5 +1,7 @@
 import os, argparse, torch
+
 from transformers import set_seed, AutoTokenizer
+
 from module import (
     load_dataloader,
     load_model,
@@ -15,9 +17,9 @@ class Config(object):
     def __init__(self, args):    
 
         self.mode = args.mode
-        self.model_type = args.model
+        self.model_type = f"ple_{args.model}"
         self.plm_mname = 'albert-base-v2'
-        self.ckpt = f"ckpt/{self.model_type}_model.pt"
+        self.ckpt = f"ckpt/{self.task}/{self.model_type}_model.pt"
 
         use_cuda = torch.cuda.is_available()
         self.device_type = 'cuda' if use_cuda else 'cpu'
@@ -82,8 +84,8 @@ if __name__ == '__main__':
 
     assert args.task in ['translation', 'dialogue', 'summarization']
     assert args.mode in ['train', 'test', 'inference']
-    assert args.model in ['simple', 'fused', 'enc_dec']
-    assert args.model in ['greedy', 'beam']
+    assert args.model in ['enc', 'enc_dec', 'fusion']
+    assert args.search in ['greedy', 'beam']
 
     
 

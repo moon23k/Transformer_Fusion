@@ -31,9 +31,9 @@ class EncoderLayer(nn.Module):
         self.bert_attn = MultiHeadAttention(config)
         self.pff = PositionwiseFeedForward(config)
 
-        self.s_sublayer = Sublayer(config)
-        self.b_sublayer = Sublayer(config)
-        self.p_sublayer = Sublayer(config)
+        self.s_sublayer = Sublayer(config) #self attn
+        self.b_sublayer = Sublayer(config) #bert attn
+        self.p_sublayer = Sublayer(config) #pff
 
 
     def forward(self, x, mask, bert_out):
@@ -62,10 +62,10 @@ class DecoderLayer(nn.Module):
         self.enc_dec_attn = MultiHeadAttention(config)
         self.pff = PositionwiseFeedForward(config)
 
-        self.s_sublayer = Sublayer(config)
-        self.b_sublayer = Sublayer(config)
-        self.e_sublayer = Sublayer(config)
-        self.p_sublayer = Sublayer(config)
+        self.s_sublayer = Sublayer(config) #self
+        self.b_sublayer = Sublayer(config) #bert
+        self.e_sublayer = Sublayer(config) #encoder
+        self.p_sublayer = Sublayer(config) #pff
 
 
     def forward(self, x, memory, e_mask, d_mask, bert_out):
@@ -181,15 +181,15 @@ class FusedModel(nn.Module):
 
 
     def forward(self, input_ids, attention_mask, labels):
-        shifted_labels = self.shift_right(labels)
+        y = self.shift_right(labels)
 
         e_mask = self.pad_mask(input_ids)
-        d_mask = self.dec_mask(shifted_labels)
+        d_mask = self.dec_mask(y)
         
         bert_out = self.bert(input_ids, attention_mask).last_hidden_state
 
         memory = self.encoder(input_ids, e_mask, bert_out)
-        d_out = self.decoder(shifted_labels, memory, e_mask, d_mask, bert_out)
+        d_out = self.decoder(y, memory, e_mask, d_mask, bert_out)
         
         logits = self.generator(d_out)
         loss = self.criterion(logits.view(-1, self.vocab_size), 

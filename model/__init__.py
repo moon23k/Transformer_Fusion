@@ -1,2 +1,1 @@
-from .fused import FusedModel
-from .simple import SimpleModel
+from .architecture import EncModel, EncDecModel, FusionModel
