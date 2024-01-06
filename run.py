@@ -1,7 +1,5 @@
-import os, argparse, torch
-
+import os, argparse, yaml, torch
 from transformers import set_seed, AutoTokenizer
-
 from module import (
     load_dataloader,
     load_model,
@@ -16,20 +14,26 @@ from module import (
 class Config(object):
     def __init__(self, args):    
 
+        with open('config.yaml', 'r') as f:
+            params = yaml.load(f, Loader=yaml.FullLoader)
+            for group in params.keys():
+                for key, val in params[group].items():
+                    setattr(self, key, val)
+
+        self.task = args.task
         self.mode = args.mode
-        self.model_type = f"ple_{args.model}"
-        self.plm_mname = 'albert-base-v2'
+        self.model_type = args.model
+        self.search_method = args.search
+
+        self.mname = 'albert-base-v2'
         self.ckpt = f"ckpt/{self.task}/{self.model_type}_model.pt"
+        self.search_method = args.search
 
         use_cuda = torch.cuda.is_available()
-        self.device_type = 'cuda' if use_cuda else 'cpu'
-
-        if self.mode == 'inference':
-            self.device = torch.device('cpu')
-        else:
-            self.device = torch.device('cuda' if use_cuda else 'cpu')
-
-        os.makedirs(f'ckpt/{self.task}', exist_ok=True)
+        self.device_type = 'cuda' \
+                           if use_cuda and self.mode != 'inference' \
+                           else 'cpu'
+        self.device = torch.device(self.device_type)
 
 
     def update_attr(self, tokenizer):
@@ -48,9 +52,9 @@ class Config(object):
 
 def main(args):
     set_seed(42)
-    config = Config(args.task, args.task)
+    config = Config(args)
     tokenizer = AutoTokenizer.from_pretrained(
-        config.plm_mname, model_max_length=config.max_len
+        config.mname, model_max_length=config.max_len
     )
     config.update_attr(tokenizer)
 
@@ -84,7 +88,7 @@ if __name__ == '__main__':
 
     assert args.task in ['translation', 'dialogue', 'summarization']
     assert args.mode in ['train', 'test', 'inference']
-    assert args.model in ['enc', 'enc_dec', 'fusion']
+    assert args.model in ['simple', 'fusion']
     assert args.search in ['greedy', 'beam']
 
     

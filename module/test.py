@@ -8,46 +8,65 @@ class Tester:
         
         self.model = model
         self.tokenizer = tokenizer
-        self.device = config.device
         self.dataloader = test_dataloader
 
+        self.task = config.task
+        self.bos_id = config.bos_id
+        self.eos_id = config.eos_id
+        self.device = config.device
         self.max_len = config.max_len
-        self.beam_size = config.beam_size
         self.model_type = config.model_type
-        self.metric_module = evaluate.load('bleu')
+        
+        self.metric_name = 'BLEU' if self.task == 'translation' else 'ROUGE'
+        self.metric_module = evaluate.load(self.metric_name.lower())
+
 
 
     def test(self):
+        score = 0.0         
         self.model.eval()
-        
+
         with torch.no_grad():
-            for batch in tqdm(self.dataloader):   
+            for batch in self.dataloader:
                 
                 input_ids = batch['input_ids'].to(self.device)
                 attention_mask = batch['attention_mask'].to(self.device)
                 labels = batch['labels'].to(self.device)
-                                
-                if self.model_type != 'enc_dec':
-                    pred = self.model.predict(pred, labels)
 
-                else:
-                    pred = self.model.generate(
-                        input_ids, attention_mask, 
-                        max_new_tokens=self.max_len, use_cache=True
-                    )
+                pred = self.model.generate(input_ids, attention_mask)
                 
-                pred = self.tokenizer.decode(
-                    pred, skip_special_tokens=True
-                )
+                pred = self.tokenize(pred)
+                labels = self.tokenize(labels)
 
-                self.metric_module.add_batch(
-                    predictions=preds, 
-                    references=[[l] for l in labels]
-                )    
+                score += self.evaluate(pred, labels)
 
-        bleu_score = metric_module.compute()['bleu'] * 100
+        txt = f"TEST Result on {self.task.upper()} with {self.model_type.upper()} model"
+        txt += f"\n-- Score: {round(score/len(self.dataloader), 2)}\n"
+        print(txt)
 
-        print('Test Results')
-        print(f"  >> BLEU Score: {bleu_score:.2f}")
-        print(f"  >> Spent Time: {self.measure_time(start_time, time.time())}")
-        
+
+    def tokenize(self, batch):
+        return [self.tokenizer.decode(x) for x in batch.tolist()]
+
+
+
+
+
+    def evaluate(self, pred, label):
+        if all(elem == '' for elem in pred):
+            return 0.0
+
+        #For Transaltion Evaluation
+        if self.task == 'translation':
+            score = self.metric_module.compute(
+                predictions=pred, 
+                references =[[l] for l in label]
+            )['bleu']
+        #For Dialgue & Summarization Evaluation
+        else:
+            score = self.metric_module.compute(
+                predictions=pred, 
+                references =[[l] for l in label]
+            )['rouge2']
+
+        return score * 100        

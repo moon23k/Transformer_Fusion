@@ -1,1 +1,1 @@
-from .architecture import EncModel, EncDecModel, FusionModel
+from .architecture import Simple, FusionModel

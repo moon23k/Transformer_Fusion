@@ -127,8 +127,6 @@ def process_summarization_data(data_volumn):
                     y = re.sub(r"\s([.](?:\s|$))", r'\1', y)  #remove whitespace in front of dot
 
                     processed.append({'x': x, 'y': y})
-                    corpus.append(x)
-                    corpus.append(y)
 
                     #End Condition
                     volumn_cnt += 1

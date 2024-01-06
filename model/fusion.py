@@ -1,25 +1,14 @@
 import torch
 import torch.nn as nn
 from collections import namedtuple
-from transformers import BertModel
-from model.simple import (
+from transformers import AutoModel
+from .common import (
     clones, 
-    LayerNorm,
     Embeddings, 
     MultiHeadAttention,
-    PositionwiseFeedForward
+    PositionwiseFeedForward,
+    SublayerConnection
 )
-
-
-
-class Sublayer(nn.Module):
-    def __init__(self, config):
-        super(Sublayer, self).__init__()
-        self.norm = LayerNorm(config.hidden_dim)
-        self.dropout = nn.Dropout(config.dropout_ratio)
-
-    def forward(self, x, sublayer):
-        return self.dropout(sublayer(self.norm(x)))
 
 
 
@@ -31,9 +20,9 @@ class EncoderLayer(nn.Module):
         self.bert_attn = MultiHeadAttention(config)
         self.pff = PositionwiseFeedForward(config)
 
-        self.s_sublayer = Sublayer(config) #self attn
-        self.b_sublayer = Sublayer(config) #bert attn
-        self.p_sublayer = Sublayer(config) #pff
+        self.s_sublayer = SublayerConnection(config) #self attn
+        self.b_sublayer = SublayerConnection(config) #bert attn
+        self.p_sublayer = SublayerConnection(config) #pff
 
 
     def forward(self, x, mask, bert_out):
@@ -62,10 +51,10 @@ class DecoderLayer(nn.Module):
         self.enc_dec_attn = MultiHeadAttention(config)
         self.pff = PositionwiseFeedForward(config)
 
-        self.s_sublayer = Sublayer(config) #self
-        self.b_sublayer = Sublayer(config) #bert
-        self.e_sublayer = Sublayer(config) #encoder
-        self.p_sublayer = Sublayer(config) #pff
+        self.s_sublayer = SublayerConnection(config) #self
+        self.b_sublayer = SublayerConnection(config) #bert
+        self.e_sublayer = SublayerConnection(config) #encoder
+        self.p_sublayer = SublayerConnection(config) #pff
 
 
     def forward(self, x, memory, e_mask, d_mask, bert_out):
@@ -96,7 +85,7 @@ class Encoder(nn.Module):
     def __init__(self, config):
         super(Encoder, self).__init__()
         self.emb = Embeddings(config)
-        self.norm = LayerNorm(config.hidden_dim)
+        self.norm = nn.LayerNorm(config.hidden_dim)
         self.layers = clones(EncoderLayer(config), config.n_layers)
 
     def forward(self, x, mask, bert_out):
@@ -111,7 +100,7 @@ class Decoder(nn.Module):
     def __init__(self, config):
         super(Decoder, self).__init__()
         self.emb = Embeddings(config)
-        self.norm = LayerNorm(config.hidden_dim)
+        self.norm = nn.LayerNorm(config.hidden_dim)
         self.layers = clones(DecoderLayer(config), config.n_layers)
         
 
@@ -123,16 +112,16 @@ class Decoder(nn.Module):
 
 
 
-class FusedModel(nn.Module):
+class FusionModel(nn.Module):
     def __init__(self, config):
-        super(FusedModel, self).__init__()
+        super(FusionModel, self).__init__()
         
         self.device = config.device
         self.pad_id = config.pad_id
         self.max_len = config.max_len
         self.vocab_size = config.vocab_size
 
-        self.bert = BertModel.from_pretrained(config.plm_mname)
+        self.ple = AutoModel.from_pretrained(config.mname)
         self.encoder = Encoder(config)
         self.decoder = Decoder(config)
         self.generator = nn.Linear(config.hidden_dim, config.vocab_size)
@@ -159,12 +148,12 @@ class FusedModel(nn.Module):
         return shifted
 
 
-    def genreate(self, input_ids, attention_mask):
+    def generate(self, input_ids, attention_mask):
         batch_size = input_ids.size(0)
         
         e_mask = self.pad_mask(input_ids)
-        bert_out = self.bert(input_ids, attention_mask).last_hidden_state
-        memory = self.encoder(input_ids, e_mask, bert_out)
+        ple_out = self.ple(input_ids, attention_mask).last_hidden_state
+        memory = self.encoder(input_ids, e_mask, ple_out)
 
         preds = torch.zeros(batch_size, self.max_len).to(self.device)
         for i in range(1, self.max_len):
@@ -186,10 +175,10 @@ class FusedModel(nn.Module):
         e_mask = self.pad_mask(input_ids)
         d_mask = self.dec_mask(y)
         
-        bert_out = self.bert(input_ids, attention_mask).last_hidden_state
+        ple_out = self.ple(input_ids, attention_mask).last_hidden_state
 
-        memory = self.encoder(input_ids, e_mask, bert_out)
-        d_out = self.decoder(y, memory, e_mask, d_mask, bert_out)
+        memory = self.encoder(input_ids, e_mask, ple_out)
+        d_out = self.decoder(y, memory, e_mask, d_mask, ple_out)
         
         logits = self.generator(d_out)
         loss = self.criterion(logits.view(-1, self.vocab_size), 

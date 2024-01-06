@@ -1,10 +1,6 @@
 import os, torch
-from model import EncModel, EncDecModel, FusionModel
-from transformers import (
-    BertGenerationDecoder,
-    BertGenerationEncoder,
-    EncoderDecoderModel
-)
+from model import SimpleModel, FusionModel
+
 
 
 
@@ -31,35 +27,11 @@ def load_model(config):
     if config.model_type == 'simple':
         model = SimpleModel(config)
 
-    elif config.model_type == 'fused':
-        model = FusedModel(config)
+    elif config.model_type == 'fusion':
+        model = FusionModel(config)
     
-    elif config.model_type == 'enc_dec':
-        
-        encoder = BertGenerationEncoder.from_pretrained(
-            config.plm_mname, 
-            bos_token_id=config.bos_id,
-            eos_token_id=config.eos_id
-        )
 
-        decoder = BertGenerationDecoder.from_pretrained(
-            config.plm_mname, 
-            add_cross_attention=True, 
-            is_decoder=True,
-            bos_token_id=config.bos_id,
-            eos_token_id=config.eos_id
-        )
-
-        model = EncoderDecoderModel(encoder=encoder, decoder=decoder)        
-
-        model.config.encoder.decoder_start_token_id = config.bos_id
-        model.config.decoder.decoder_start_token_id = config.bos_id
-        model.config.decoder_start_token_id = config.bos_id
-        
-        model.config.pad_token_id = config.pad_id
-        model.config.vocab_size = config.vocab_size
-
-    print(f"BERT {config.model_type.upper()} Model for has loaded")
+    print(f"{config.model_type.upper()} Model for has loaded")
 
     
     if config.mode != 'train':
