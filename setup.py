@@ -1,5 +1,10 @@
-import os, re, json, argparse
+import os, re, json, yaml, argparse
 from datasets import load_dataset
+from tokenizers.models import BPE
+from tokenizers import Tokenizer, normalizers
+from tokenizers.trainers import BpeTrainer
+from tokenizers.pre_tokenizers import Whitespace
+from tokenizers.normalizers import NFD, Lowercase, StripAccents
 
 
 
@@ -13,9 +18,9 @@ def process_translation_data(data_volumn):
     max_len = 300
     max_diff = 50
     volumn_cnt = 0
-    processed = []
-    
 
+    corpus, processed = [], []
+    
     for elem in nmt_data:
         temp_dict = dict()
         x, y = elem['en'].strip().lower(), elem['de'].strip().lower()
@@ -27,12 +32,18 @@ def process_translation_data(data_volumn):
         dif_condition = abs(x_len - y_len) < max_diff
 
         if max_condition & min_condition & dif_condition:
+            corpus.append(x)
+            corpus.append(y)
             processed.append({'x': x, 'y':y})
             
             #End condition
             volumn_cnt += 1
             if volumn_cnt == data_volumn:
                 break
+
+    #Save Corpus
+    with open('data/translation/corpus.txt', 'w') as f:
+        f.write('\n'.join(corpus))
 
     return processed 
 
@@ -41,7 +52,7 @@ def process_translation_data(data_volumn):
 #Dialog
 def process_dialogue_data(data_volumn):
     volumn_cnt = 0
-    processed = []
+    corpus, processed = [], []
 
     #Load original Datasets
     daily_data = load_dataset('daily_dialog')
@@ -92,11 +103,18 @@ def process_dialogue_data(data_volumn):
     assert len(x_data) == len(y_data)
     
     for x, y in zip(x_data, y_data):        
+        corpus.append(x)
+        corpus.append(y)
         processed.append({'x': x, 'y': y})
 
         volumn_cnt += 1
         if volumn_cnt == data_volumn:
             break        
+
+    
+    #Save Corpus
+    with open('data/dialogue/corpus.txt', 'w') as f:
+        f.write('\n'.join(corpus))    
 
     return processed
 
@@ -105,7 +123,7 @@ def process_dialogue_data(data_volumn):
 #Summarization
 def process_summarization_data(data_volumn):    
     volumn_cnt = 0
-    processed = []
+    corpus, processed = [], []
     min_len, max_len = 500, 2300
 
     #Load Original Dataset
@@ -127,15 +145,44 @@ def process_summarization_data(data_volumn):
                     y = re.sub(r"\s([.](?:\s|$))", r'\1', y)  #remove whitespace in front of dot
 
                     processed.append({'x': x, 'y': y})
+                    corpus.append(x)
+                    corpus.append(y)
 
                     #End Condition
                     volumn_cnt += 1
             if volumn_cnt == data_volumn:
                 break
+
+    with open('data/summarization/corpus.txt', 'w') as f:
+        f.write('\n'.join(corpus))
     
     return processed           
 
 
+
+def train_tokenizer(task):
+    corpus_path = f'data/{task}/corpus.txt'
+    assert os.path.exists(corpus_path)
+    
+    assert os.path.exists('config.yaml')
+    with open('config.yaml', 'r') as f:
+        vocab_config = yaml.load(f, Loader=yaml.FullLoader)['vocab']
+
+    tokenizer = Tokenizer(BPE(unk_token=vocab_config['unk_token']))
+    tokenizer.normalizer = normalizers.Sequence([NFD(), Lowercase(), StripAccents()])
+    tokenizer.pre_tokenizer = Whitespace()
+    trainer = BpeTrainer(
+        vocab_size=vocab_config['vocab_size'], 
+        special_tokens=[
+            vocab_config['pad_token'], 
+            vocab_config['unk_token'],
+            vocab_config['bos_token'],
+            vocab_config['eos_token']
+            ]
+        )
+
+    tokenizer.train(files=[corpus_path], trainer=trainer)
+    tokenizer.save(f"data/{task}/tokenizer.json")
 
 
 
@@ -164,6 +211,9 @@ def main(task):
         processed = process_dialogue_data(data_volumn)
     elif task == 'summarization':
         processed = process_summarization_data(data_volumn)        
+
+    #Train Tokenizer
+    train_tokenizer(task)
 
     #Save Data
     save_data(task, processed)

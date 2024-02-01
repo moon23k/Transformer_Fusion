@@ -1,1 +1,2 @@
-from .architecture import Simple, FusionModel
+from .simple_model import SimpleModel
+from .fusion_model import FusionModel

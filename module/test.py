@@ -22,33 +22,8 @@ class Tester:
 
 
 
-    def test(self):
-        score = 0.0         
-        self.model.eval()
-
-        with torch.no_grad():
-            for batch in self.dataloader:
-                
-                input_ids = batch['input_ids'].to(self.device)
-                attention_mask = batch['attention_mask'].to(self.device)
-                labels = batch['labels'].to(self.device)
-
-                pred = self.model.generate(input_ids, attention_mask)
-                
-                pred = self.tokenize(pred)
-                labels = self.tokenize(labels)
-
-                score += self.evaluate(pred, labels)
-
-        txt = f"TEST Result on {self.task.upper()} with {self.model_type.upper()} model"
-        txt += f"\n-- Score: {round(score/len(self.dataloader), 2)}\n"
-        print(txt)
-
-
     def tokenize(self, batch):
         return [self.tokenizer.decode(x) for x in batch.tolist()]
-
-
 
 
 
@@ -70,3 +45,27 @@ class Tester:
             )['rouge2']
 
         return score * 100        
+
+
+
+    def test(self):
+        score = 0.0         
+        self.model.eval()
+
+        with torch.no_grad():
+            for batch in self.dataloader:
+                
+                input_ids = batch['input_ids'].to(self.device)
+                attention_mask = batch['attention_mask'].to(self.device)
+                labels = batch['labels'].to(self.device)
+
+                pred = self.model.generate(input_ids, attention_mask)
+                
+                pred = self.tokenize(pred)
+                labels = self.tokenize(labels)
+
+                score += self.evaluate(pred, labels)
+
+        txt = f"TEST Result on {self.task.upper()} with {self.model_type.upper()} model"
+        txt += f"\n-- Score: {round(score/len(self.dataloader), 2)}\n"
+        print(txt)        

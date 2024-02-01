@@ -13,48 +13,23 @@ class Trainer:
         self.model = model
         self.train_dataloader = train_dataloader
         self.valid_dataloader = valid_dataloader
-
-        self.model_type = config.model_type
-        self.lr = config.lr
-
+        
         self.clip = config.clip
         self.device = config.device
         self.n_epochs = config.n_epochs
+        self.patience = config.patience
         self.vocab_size = config.vocab_size
         self.early_stop = config.early_stop
-        self.patience = config.patience
         self.device_type = config.device_type
         self.scaler = torch.cuda.amp.GradScaler()
         self.iters_to_accumulate = config.iters_to_accumulate        
 
-        self.optimizer = AdamW(self.model.parameters(), lr=self.lr)
+        self.optimizer = AdamW(self.model.parameters(), lr=config.lr)
+        #self.optimizer = AdamW(filter(lambda p: p.requires_grad, self.model.parameters()), lr=config.lr)
         self.lr_scheduler = ReduceLROnPlateau(self.optimizer, patience=2)
 
         self.ckpt = config.ckpt
         self.record_path = self.ckpt.replace('model.pt', 'report.json')
-
-        self.optimizer, self.bert_optimizer = self.get_optims()
-
-
-    def get_optims(self):
-
-        if self.model_type == 'simple':
-            optim_params = list(self.model.decoder.parameters()) + \
-                           list(self.model.generator.parameters())
-
-            optimizer = AdamW(params=optim_params, lr=self.lr)
-            bert_optimizer = AdamW(params=self.model.encoder.parameters(), lr=self.lr * 0.1)
-
-
-        elif self.model_type == 'fusion':
-            optim_params = list(self.model.encoder.parameters()) + \
-                           list(self.model.decoder.parameters()) + \
-                           list(self.model.generator.parameters())
-
-            optimizer = AdamW(params=optim_params, lr=self.lr)
-            bert_optimizer = AdamW(params=self.model.ple.parameters(), lr=self.lr * 0.1)
-
-        return optimizer, bert_optimizer
         
 
 
@@ -160,19 +135,13 @@ class Trainer:
             if (idx + 1) % self.iters_to_accumulate == 0:
                 #Gradient Clipping
                 self.scaler.unscale_(self.optimizer)
-                self.scaler.unscale_(self.bert_optimizer)
-
                 nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.clip)
-                
 
                 #Gradient Update & Scaler Update
-                self.scaler.step(self.optimizer)
-                self.scaler.step(self.bert_optimizer)
-                
+                self.scaler.step(self.optimizer)                
                 self.scaler.update()
                 
                 self.optimizer.zero_grad()
-                self.bert_optimizer.zero_grad()
 
             epoch_loss += loss.item()
         

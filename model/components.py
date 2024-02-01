@@ -6,8 +6,10 @@ from collections import namedtuple
 
 
 
+
 def clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
+
 
 
 
@@ -32,6 +34,7 @@ class PositionalEncoding(nn.Module):
 
     def forward(self, x):
         return x + self.pe[:, :x.size(1)]
+
 
 
 
@@ -61,6 +64,7 @@ class Embeddings(nn.Module):
 
 
 
+
 class PositionwiseFeedForward(nn.Module):
     def __init__(self, config):
         super(PositionwiseFeedForward, self).__init__()
@@ -70,6 +74,7 @@ class PositionwiseFeedForward(nn.Module):
 
     def forward(self, x):
         return self.w_2(self.dropout(F.gelu(self.w_1(x))))
+
 
 
 

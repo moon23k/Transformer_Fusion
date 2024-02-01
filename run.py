@@ -1,4 +1,6 @@
 import os, argparse, yaml, torch
+from tokenizers import Tokenizer
+from tokenizers.processors import TemplateProcessing
 from transformers import set_seed, AutoTokenizer
 from module import (
     load_dataloader,
@@ -24,10 +26,8 @@ class Config(object):
         self.mode = args.mode
         self.model_type = args.model
         self.search_method = args.search
-
-        self.mname = 'albert-base-v2'
         self.ckpt = f"ckpt/{self.task}/{self.model_type}_model.pt"
-        self.search_method = args.search
+        self.tokenizer_path = f'data/{self.task}/tokenizer.json'
 
         use_cuda = torch.cuda.is_available()
         self.device_type = 'cuda' \
@@ -49,16 +49,15 @@ class Config(object):
 
 
 
-
 def main(args):
     set_seed(42)
     config = Config(args)
     tokenizer = AutoTokenizer.from_pretrained(
         config.mname, model_max_length=config.max_len
     )
-    config.update_attr(tokenizer)
+    config.update_attr(tokenizer)    
+    model = load_model(config)
 
-    model = load_model(config)    
 
     if config.mode == 'train':
         train_dataloader = load_dataloader(config, tokenizer, 'train')
