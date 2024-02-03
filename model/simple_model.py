@@ -61,8 +61,11 @@ class SimpleModel(nn.Module):
         return x[:, :-1], x[:, 1:]    
 
 
-    def mask(self, x, y):
+    def mask(self, x, y=None):
         x_mask = x == self.pad_id
+
+        if y is None:
+            return x_mask
 
         sz = y.size(1)
         y_mask = torch.triu(torch.full((sz, sz), float('-inf')), diagonal=1).to(self.device)
@@ -95,5 +98,3 @@ class SimpleModel(nn.Module):
         )
 
         return self.out
-
-

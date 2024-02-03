@@ -1,6 +1,5 @@
 import os, torch
 import torch.nn as nn
-from transformers import AutoModel
 from model import SimpleModel, FusionModel
 
 
@@ -43,18 +42,11 @@ def load_model(config):
     init_weights(model)
     print(f"Initialized {config.model_type.upper()} model has loaded")
     
-
     if config.mode != 'train':
         assert os.path.exists(config.ckpt)
         model_state = torch.load(config.ckpt, map_location=config.device)['model_state_dict']
         model.load_state_dict(model_state)
         print(f"Trained Model States has loaded on the Model")
-    '''
-    ple_keys = [key for key in pretrained_model_state.keys() if 'ple' not in key]
-    for key in ple_keys:
-        current_model_state[key] = pretrained_model_state[key]
-    '''
-
 
     print_model_desc(model)
     return model.to(config.device)

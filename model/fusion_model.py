@@ -20,8 +20,8 @@ class EncoderLayer(nn.Module):
 
     def forward(self, x, ple_out, e_mask):
 
-        s_out = self.self_attn(x, x, x, e_mask)
-        p_out = self.ple_attn(x, ple_out, ple_out, e_mask)
+        s_out = self.self_attn(x, key_padding_mask=e_mask)
+        p_out = self.ple_attn(x, ple_out, key_padding_mask=e_mask)
         out = x + s_out * 0.5 + p_out * 0.5
 
         return out + self.pff(out)
@@ -39,15 +39,15 @@ class DecoderLayer(nn.Module):
         self.pff = PositionwiseFeedForward(config)
 
 
-    def forward(self, x, memory, ple_out, e_mask, d_mask):
+    def forward(self, x, memory, ple_out, e_mask=None, d_mask=None):
         
         m, p = memory, ple_out
 
-        s_out = self.self_attn(x, x, x, attn_mask=d_mask)
+        s_out = self.self_attn(x, attn_mask=d_mask)
         x = x + s_out
 
-        p_out = self.ple_attn(x, p, p, key_padding_mask=e_mask)
-        e_out = self.enc_attn(x, m, m, key_padding_mask=e_mask)
+        p_out = self.ple_attn(x, p, key_padding_mask=e_mask)
+        e_out = self.enc_attn(x, m, key_padding_mask=e_mask)
         out = x + p_out * 0.5 + e_out * 0.5
 
         return out + self.pff(out)
@@ -84,7 +84,7 @@ class Decoder(nn.Module):
         self.norm = nn.LayerNorm(config.hidden_dim)
         
 
-    def forward(self, x, memory, ple_out, e_mask, d_mask):
+    def forward(self, x, memory, ple_out, e_mask=None, d_mask=None):
         x = self.mapping(self.embeddings(x))
         for layer in self.layers:
             x = layer(x, memory, ple_out, e_mask, d_mask)
@@ -116,8 +116,11 @@ class FusionModel(nn.Module):
         return x[:, :-1], x[:, 1:]    
 
 
-    def mask(self, x, y):
+    def mask(self, x, y=None):
         x_mask = x == self.pad_id
+
+        if y is None:
+            return x_mask
 
         sz = y.size(1)
         y_mask = torch.triu(torch.full((sz, sz), float('-inf')), diagonal=1).to(self.device)
@@ -129,7 +132,7 @@ class FusionModel(nn.Module):
         return self.encoder(x, ple_out, e_mask)
     
 
-    def decode(self, x, m, ple_out, e_mask, d_mask):
+    def decode(self, x, m, ple_out, e_mask, d_mask=None):
         return self.decoder(x, m, ple_out, e_mask, d_mask)
 
 
@@ -142,12 +145,14 @@ class FusionModel(nn.Module):
         ple_out = self.mapping(ple_out)
 
         memory = self.encode(x, ple_out, e_mask)
-        d_out = self.decoder(y, memory, e_mask, d_mask, ple_out)
+        d_out = self.decode(y, memory, ple_out, e_mask, d_mask)
         
+        logit = self.generator(d_out)
+        self.out.logit = logit
+        self.out.loss = self.criterion(
+            logit.contiguous().view(-1, self.vocab_size), 
+            label.contiguous().view(-1)
+        )
 
-        logits = self.generator(d_out)
-        loss = self.criterion(logits.view(-1, self.vocab_size), 
-                              labels[:, 1:].contiguous().view(-1))
-
-        return self.outputs(logits, loss)
+        return self.out
 
