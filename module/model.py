@@ -1,6 +1,6 @@
 import os, torch
 import torch.nn as nn
-from model import SimpleModel, FusionModel
+from model import SimpleModel, ParallelModel, SequentialModel
 
 
 

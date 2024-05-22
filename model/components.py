@@ -11,7 +11,7 @@ def clones(module, N):
 
 
 def load_ple(config):
-    ple = AutoModel.from_pretrained(config.mname)
+    ple = AutoModel.from_pretrained(config.ple_name)
 
     #Extend Max Position Embeddings
     if config.task == 'summarization':
@@ -67,7 +67,7 @@ class PositionwiseFeedForward(nn.Module):
         return self.dropout2(x)
 
 
-
+#여기 손봐야 함
 class MultiHeadAttention(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -81,7 +81,6 @@ class MultiHeadAttention(nn.Module):
         )
 
     def forward(self, q, k, v, key_padding_mask=None, attn_mask=None):
-        #그럼 이때 norm의 대상이 되는 값이 뭐냐;;;
         x = self.norm(x)
         x = self.mha(query=q)[0]
         return self.dropout(x)

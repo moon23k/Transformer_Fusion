@@ -35,7 +35,7 @@ class DecoderLayer(nn.Module):
 
         self.self_attn = MultiHeadAttention(config)
         self.ple_attn = MultiHeadAttention(config)
-        self.enc_attn = MultiHeadAttention(config)
+        self.cross_attn = MultiHeadAttention(config)
         self.pff = PositionwiseFeedForward(config)
 
 
@@ -47,8 +47,8 @@ class DecoderLayer(nn.Module):
         x = x + s_out
 
         p_out = self.ple_attn(x, p, key_padding_mask=e_mask)
-        e_out = self.enc_attn(x, m, key_padding_mask=e_mask)
-        out = x + p_out * 0.5 + e_out * 0.5
+        c_out = self.cross_attn(x, m, key_padding_mask=e_mask)
+        out = x + p_out * 0.5 + c_out * 0.5
 
         return out + self.pff(out)
 
@@ -92,9 +92,9 @@ class Decoder(nn.Module):
 
 
 
-class FusionModel(nn.Module):
+class SequentialModel(nn.Module):
     def __init__(self, config):
-        super(FusionModel, self).__init__()
+        super(SequentialModel, self).__init__()
 
         self.device = config.device
         self.pad_id = config.pad_id

@@ -3,11 +3,8 @@ from tokenizers import Tokenizer
 from tokenizers.processors import TemplateProcessing
 from transformers import set_seed, AutoTokenizer
 from module import (
-    load_dataloader,
-    load_model,
-    Trainer, 
-    Tester,
-    Generator
+    load_model, load_dataloader,
+    Trainer, Tester, SeqGenerator
 )
 
 
@@ -24,15 +21,14 @@ class Config(object):
 
         self.task = args.task
         self.mode = args.mode
-        self.model_type = args.model
+        self.mname = f'{args.fusion_type}_{args.fusion_part}'
         self.search_method = args.search
-        self.ckpt = f"ckpt/{self.task}/{self.model_type}_model.pt"
+        self.ckpt = f"ckpt/{self.task}/{self.mname}_model.pt"
         self.tokenizer_path = f'data/{self.task}/tokenizer.json'
 
         use_cuda = torch.cuda.is_available()
-        self.device_type = 'cuda' \
-                           if use_cuda and self.mode != 'inference' \
-                           else 'cpu'
+        device_condition = use_cuda and self.mode != 'inference'
+        self.device_type = 'cuda' if device_condition else 'cpu'
         self.device = torch.device(self.device_type)
 
 
@@ -80,16 +76,22 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-task', required=True)
     parser.add_argument('-mode', required=True)
-    parser.add_argument('-model', required=True)
+    parser.add_argument('-fusion_type', required=True)
+    parser.add_argument('-fusion_part', required=True)
     parser.add_argument('-search', default='greedy', required=False)    
     
     args = parser.parse_args()
 
     assert args.task in ['translation', 'dialogue', 'summarization']
     assert args.mode in ['train', 'test', 'inference']
-    assert args.model in ['simple', 'fusion']
+    assert args.fusion_type in ['simple', 'parallel', 'sequential']
+    assert args.fusion_part in ['encoder', 'decoder', 'encoder_decoder']
     assert args.search in ['greedy', 'beam']
 
-    
+    if args.mode == 'train':
+        os.makedirs(f"ckpt/{args.task}", exist_ok=True)
+    else:
+        mname = f'{args.fusion_type}_{args.fusion_part}'
+        assert os.path.exists(f'ckpt/{args.task}/{mname}_model.pt')    
 
     main(args)

@@ -10,7 +10,7 @@ train:
 
 
 model:
-  mname: 'albert-base-v2'
+  ple_name: 'albert-base-v2'
   n_heads: 8
   n_layers: 3
   pff_dim: 512
