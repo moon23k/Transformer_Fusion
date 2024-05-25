@@ -3,7 +3,6 @@ from datasets import load_dataset
 
 
 
-
 #NMT
 def process_translation_data(data_volumn):
     #load original dataset
@@ -27,8 +26,6 @@ def process_translation_data(data_volumn):
         dif_condition = abs(x_len - y_len) < max_diff
 
         if max_condition & min_condition & dif_condition:
-            corpus.append(x)
-            corpus.append(y)
             processed.append({'x': x, 'y':y})
             
             #End condition
@@ -156,10 +153,10 @@ def save_data(task, data_obj):
 
 def main(task):
     #Prerequisite
+    data_volumn = 55100
     os.makedirs(f'data/{task}', exist_ok=True)
 
     #PreProcess Data
-    data_volumn = 55100
     if task == 'translation':
         processed = process_translation_data(data_volumn)
     elif task == 'dialogue':

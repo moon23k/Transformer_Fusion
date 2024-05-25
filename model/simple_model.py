@@ -1,17 +1,36 @@
 import copy, math, torch
 import torch.nn as nn
 from collections import namedtuple
-from .components import clones, load_ple, Mapping
+from .components import clones
+
+
+
+
+class Encoder(nn.Module):
+    def __init__(self, config, ple):
+        super(Encoder, self).__init__()
+
+        self.ple = ple
+        self.enc_mapping = nn.Sequential(
+            nn.Linear(ple.config.hidden_size, config.hidden_dim),
+            nn.Dropout(config.dropout_ratio)
+        )
+
+    def forward(self, x, e_mask=None):
+        x = self.ple(input_ids=x, attention_mask=e_mask).last_hidden_state
+        return self.enc_mapping(x)
 
 
 
 
 class Decoder(nn.Module):
-    def __init__(self, config, ple_embeddings):
+    def __init__(self, config):
         super(Decoder, self).__init__()
 
-        self.embeddings = ple_embeddings
-        self.mapping = Mapping(config.emb_dim, config.hidden_dim)
+        self.emb_mapping = nn.Sequential(
+            nn.Linear(config.emb_dim, config.hidden_dim),
+            nn.Dropout(config.dropout_ratio)
+        )
 
         layer = nn.TransformerDecoderLayer(
             d_model=config.hidden_dim,
@@ -25,8 +44,9 @@ class Decoder(nn.Module):
         self.layers = clones(layer, config.n_layers)
 
 
-    def forward(self, x, memory, e_mask=None, d_mask=None):   
-        x = self.mapping(self.embeddings(x))
+    def forward(self, x, memory, e_mask=None, d_mask=None):
+        x = self.emb_mapping(x)
+
         for layer in self.layers:
             x = layer(
                 x, memory, 
@@ -39,19 +59,20 @@ class Decoder(nn.Module):
 
 
 class SimpleModel(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, ple):
         super(SimpleModel, self).__init__()
 
+        #Attr Setup
         self.pad_id = config.pad_id
         self.device = config.device
         self.vocab_size = config.vocab_size
 
-        self.ple = load_ple(config)
-        self.mapping = Mapping(self.ple.config.hidden_size, config.hidden_dim)
-
-        self.decoder = Decoder(config, self.ple.embeddings)
+        #Module Setup
+        self.encoder = Encoder(config, ple)
+        self.decoder = Decoder(config)
         self.generator = nn.Linear(config.hidden_dim, self.vocab_size)
 
+        #Output Setup
         self.criterion = nn.CrossEntropyLoss()
         self.out = namedtuple('Out', 'logit loss')
 
@@ -61,34 +82,26 @@ class SimpleModel(nn.Module):
         return x[:, :-1], x[:, 1:]    
 
 
-    def mask(self, x, y=None):
-        x_mask = x == self.pad_id
+    def pad_mask(self, x):
+        return x == self.pad_id
 
-        if y is None:
-            return x_mask
 
+    def causal_mask(self, y):
         sz = y.size(1)
-        y_mask = torch.triu(torch.full((sz, sz), float('-inf')), diagonal=1).to(self.device)
+        return torch.triu(torch.full((sz, sz), float('-inf')), diagonal=1).to(self.device)
 
-        return x_mask, y_mask
-
-
-    def encode(self, x, ple_mask):
-        x = self.ple(input_ids=x, attention_mask=ple_mask).last_hidden_state
-        return self.mapping(x)
-        
-
-    def decode(self, x, memory, e_mask, d_mask):
-        return self.decoder(x, memory, e_mask, d_mask)
 
 
     def forward(self, input_ids, attention_mask, labels):
-        x = input_ids
         y, label = self.shift_y(labels)
-        e_mask, d_mask = self.mask(x, y)
 
-        memory = self.encode(x, attention_mask)
-        dec_out = self.decode(y, memory, e_mask, d_mask)
+        e_mask = self.pad_mask(input_ids)
+        causal_mask = self.causal_mask(y)
+        
+        y = self.encoder.ple.embeddings(y)
+
+        memory = self.encoder(input_ids, attention_mask)
+        dec_out = self.decoder(y, memory, e_mask, causal_mask)
         logit = self.generator(dec_out)
 
         self.out.logit = logit

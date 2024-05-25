@@ -1,7 +1,15 @@
 import os, torch
 import torch.nn as nn
+from transformers import AutoModel
 from model import SimpleModel, ParallelModel, SequentialModel
 
+
+
+
+def init_weights(model):
+    for name, param in model.named_parameters():
+        if 'ple' not in name and 'weight' in name and 'norm' not in name:
+            nn.init.xavier_uniform_(param)
 
 
     
@@ -26,21 +34,47 @@ def print_model_desc(model):
 
 
 
-def init_weights(model):
-    for name, param in model.named_parameters():
-        if 'ple' not in name and 'weight' in name and 'norm' not in name:
-            nn.init.xavier_uniform_(param)
+def load_ple(config):
+    ple = AutoModel.from_pretrained(config.ple_name)
+
+    #Extend Max Position Embeddings
+    if config.task == 'summarization':
+        max_len = config.max_len
+        embeddings = ple.embeddings
+        ple_max_len = ple.config.max_position_embeddings
+
+        temp_emb = nn.Embedding(max_len, ple.config.embedding_size)
+        temp_emb.weight.data[:ple_max_len] = embeddings.position_embeddings.weight.data
+        temp_emb.weight.data[ple_max_len:] = embeddings.position_embeddings.weight.data[-1][None,:].repeat(max_len-ple_max_len, 1)
+
+        ple.embeddings.position_embeddings = temp_emb
+        ple.config.max_position_embeddings = max_len
+
+        ple.embeddings.position_ids = torch.arange(max_len).expand((1, -1))
+        ple.embeddings.token_type_ids = torch.zeros(max_len, dtype=torch.long).expand((1, -1))        
+    
+    #Update config.emb_dim for process afterward
+    config.emb_dim = ple.config.embedding_size
+
+    for param in ple.parameters():
+        param.requires_grad = False
+
+    return ple
 
 
 
 def load_model(config):
-    if config.model_type == 'simple':
-        model = SimpleModel(config)
-    elif config.model_type == 'fusion':
-        model = FusionModel(config)
+    ple = load_ple(config)
+
+    if 'simple' in config.mname:
+        model = SimpleModel(config, ple)
+    elif 'parallel' in config.mname:
+        model = ParallelModel(config, ple)
+    elif 'sequential' in config.mname:
+        model = SequentialModel(config, ple)
 
     init_weights(model)
-    print(f"Initialized {config.model_type.upper()} model has loaded")
+    print(f"Initialized {config.mname.upper()} model has loaded")
     
     if config.mode != 'train':
         assert os.path.exists(config.ckpt)

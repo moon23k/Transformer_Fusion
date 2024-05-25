@@ -21,7 +21,13 @@ class Config(object):
 
         self.task = args.task
         self.mode = args.mode
-        self.mname = f'{args.fusion_type}_{args.fusion_part}'
+        
+        self.max_len = self.max_len * 2 \
+                       if self.task == 'summarization' else self.max_len
+        
+        self.mname = f'{args.fusion_type}_{args.fusion_part}' \
+                if args.fusion_type != 'simple' else f"{args.fusion_type}"        
+        
         self.search_method = args.search
         self.ckpt = f"ckpt/{self.task}/{self.mname}_model.pt"
         self.tokenizer_path = f'data/{self.task}/tokenizer.json'
@@ -32,26 +38,30 @@ class Config(object):
         self.device = torch.device(self.device_type)
 
 
-    def update_attr(self, tokenizer):
-        setattr(self, 'vocab_size', tokenizer.vocab_size)
-        setattr(self, 'pad_id', tokenizer.pad_token_id)
-        setattr(self, 'bos_id', tokenizer.cls_token_id)
-        setattr(self, 'eos_id', tokenizer.sep_token_id)
-
-
     def print_attr(self):
         for attribute, value in self.__dict__.items():
             print(f"* {attribute}: {value}")
 
 
 
+def load_tokenizer(config):
+    tokenizer = AutoTokenizer.from_pretrained(
+        config.ple_name, model_max_length=config.max_len
+    )
+
+    #update config attrs
+    setattr(config, 'vocab_size', tokenizer.vocab_size)
+    setattr(config, 'pad_id', tokenizer.pad_token_id)
+    setattr(config, 'bos_id', tokenizer.cls_token_id)
+    setattr(config, 'eos_id', tokenizer.sep_token_id)        
+    return tokenizer
+
+
+
 def main(args):
     set_seed(42)
     config = Config(args)
-    tokenizer = AutoTokenizer.from_pretrained(
-        config.mname, model_max_length=config.max_len
-    )
-    config.update_attr(tokenizer)    
+    tokenizer = load_tokenizer(config)
     model = load_model(config)
 
 
@@ -67,7 +77,7 @@ def main(args):
         tester.test()    
     
     elif config.mode == 'inference':
-        generator = Generator(config, model, tokenizer)
+        generator = SeqGenerator(config, model, tokenizer)
         generator.inference()
     
 
@@ -77,21 +87,22 @@ if __name__ == '__main__':
     parser.add_argument('-task', required=True)
     parser.add_argument('-mode', required=True)
     parser.add_argument('-fusion_type', required=True)
-    parser.add_argument('-fusion_part', required=True)
+    parser.add_argument('-fusion_part', default='encoder', required=False)
     parser.add_argument('-search', default='greedy', required=False)    
     
     args = parser.parse_args()
 
-    assert args.task in ['translation', 'dialogue', 'summarization']
-    assert args.mode in ['train', 'test', 'inference']
-    assert args.fusion_type in ['simple', 'parallel', 'sequential']
-    assert args.fusion_part in ['encoder', 'decoder', 'encoder_decoder']
-    assert args.search in ['greedy', 'beam']
+    assert args.task.lower() in ['translation', 'dialogue', 'summarization']
+    assert args.mode.lower() in ['train', 'test', 'inference']
+    assert args.fusion_type.lower() in ['simple', 'parallel', 'sequential']
+    assert args.fusion_part.lower() in ['encoder', 'decoder', 'encoder_decoder']
+    assert args.search.lower() in ['greedy', 'beam']
 
     if args.mode == 'train':
         os.makedirs(f"ckpt/{args.task}", exist_ok=True)
     else:
-        mname = f'{args.fusion_type}_{args.fusion_part}'
+        mname = f'{args.fusion_type}_{args.fusion_part}' \
+                if args.fusion_type != 'simple' else f"{args.fusion_type}"
         assert os.path.exists(f'ckpt/{args.task}/{mname}_model.pt')    
 
     main(args)
