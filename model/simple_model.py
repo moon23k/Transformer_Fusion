@@ -1,6 +1,5 @@
 import copy, math, torch
 import torch.nn as nn
-from collections import namedtuple
 from .components import clones
 
 
@@ -58,37 +57,13 @@ class Decoder(nn.Module):
 
 
 
-class SimpleModel(nn.Module):
+class SimpleModel(ModelBase):
     def __init__(self, config, ple):
-        super(SimpleModel, self).__init__()
+        super(SimpleModel, self).__init__(config)
 
-        #Attr Setup
-        self.pad_id = config.pad_id
-        self.device = config.device
-        self.vocab_size = config.vocab_size
-
-        #Module Setup
         self.encoder = Encoder(config, ple)
         self.decoder = Decoder(config)
         self.generator = nn.Linear(config.hidden_dim, self.vocab_size)
-
-        #Output Setup
-        self.criterion = nn.CrossEntropyLoss()
-        self.out = namedtuple('Out', 'logit loss')
-
-
-    @staticmethod    
-    def shift_y(x):
-        return x[:, :-1], x[:, 1:]    
-
-
-    def pad_mask(self, x):
-        return x == self.pad_id
-
-
-    def causal_mask(self, y):
-        sz = y.size(1)
-        return torch.triu(torch.full((sz, sz), float('-inf')), diagonal=1).to(self.device)
 
 
 

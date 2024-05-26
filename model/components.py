@@ -1,6 +1,8 @@
-import torch, copy, math
+import torch, copy
 import torch.nn as nn
 import torch.nn.functional as F
+from collections import namedtuple
+
 
 
 
@@ -8,16 +10,6 @@ import torch.nn.functional as F
 def clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
 
-
-
-class Mapping(nn.Module):
-    def __init__(self, input_dim, output_dim, dropout_ratio=0.1):
-        super(Mapping, self).__init__()            
-        self.linear = nn.Linear(input_dim, output_dim)
-        self.dropout = nn.Dropout(dropout_ratio)        
-
-    def forward(self, x):
-        return self.dropout(self.linear(x))
 
 
 
@@ -39,20 +31,35 @@ class PositionwiseFeedForward(nn.Module):
         return self.dropout2(x)
 
 
-#TBD
-class MultiHeadAttention(nn.Module):
-    def __init__(self, config):
-        super().__init__()
 
-        self.norm = nn.LayerNorm(config.hidden_dim)
-        self.dropout = nn.Dropout(config.dropout_ratio)
-        self.mha = nn.MultiheadAttention(
-            config.hidden_dim, 
-            config.n_heads, 
-            batch_first=True
-        )
 
-    def forward(self, q, k, v, key_padding_mask=None, attn_mask=None):
-        x = self.norm(x)
-        x = self.mha(query=q)[0]
-        return self.dropout(x)
+class ModelBase(nn.Module):
+    def __init__(self, config, ple):
+        super(ModelBase, self).__init__()
+
+        #Attr Setup
+        self.device = config.device
+        self.pad_id = config.pad_id
+        self.vocab_size = config.vocab_size
+        self.fusion_part = config.fusion_part
+        self.enc_fuse = 'enc' in config.fusion_part
+        self.dec_fuse = 'dec' in config.fusion_part
+
+
+        #Output Setup
+        self.criterion = nn.CrossEntropyLoss()
+        self.out = namedtuple('Out', 'logit loss')
+
+
+    @staticmethod    
+    def shift_y(x):
+        return x[:, :-1], x[:, 1:]
+
+
+    def pad_mask(self, x):
+        return x == self.pad_id
+
+
+    def causal_mask(self, y):
+        sz = y.size(1)
+        return torch.triu(torch.full((sz, sz), float('-inf')), diagonal=1).to(self.device)

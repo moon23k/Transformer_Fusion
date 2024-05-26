@@ -17,7 +17,6 @@ class Tester:
         self.eos_id = config.eos_id
         self.device = config.device
         self.max_len = config.max_len
-        self.model_type = config.model_type
         
         self.metric_name = 'BLEU' if self.task == 'translation' else 'ROUGE'
         self.metric_module = evaluate.load(self.metric_name.lower())
@@ -36,14 +35,16 @@ class Tester:
                 attention_mask = batch['attention_mask'].to(self.device)
                 labels = batch['labels'].to(self.device)
 
-                if self.model_type == 'simple':
+                if self.fusion_type == 'simple':
                     pred = self.simple_predict(input_ids, attention_mask)
-                elif self.model_type == 'fusion':
-                    pred = self.fusion_predict(input_ids, attention_mask)            
+                elif self.fusion_type == 'parallel':
+                    pred = self.parallel_predict(input_ids, attention_mask)            
+                elif self.fusion_type == 'sequential':
+                    pred = self.sequential_predict(input_ids, attention_mask)            
 
                 score += self.evaluate(pred, labels)
 
-        txt = f"TEST Result on {self.task.upper()} with {self.model_type.upper()} model"
+        txt = f"TEST Result on {self.task.upper()} with {self.mname.upper()} model"
         txt += f"\n-- Score: {round(score/len(self.dataloader), 2)}\n"
         print(txt)                
 
@@ -75,7 +76,7 @@ class Tester:
 
 
 
-    def fusion_predict(self, input_ids, attention_mask):
+    def parallel_predict(self, input_ids, attention_mask):
 
         batch_size = input_ids.size(0)
         pred = torch.zeros((batch_size, self.max_len), dtype=torch.long)
@@ -104,6 +105,35 @@ class Tester:
 
         return pred
 
+
+    def sequential_predict(self, input_ids, attention_mask):
+
+        batch_size = input_ids.size(0)
+        pred = torch.zeros((batch_size, self.max_len), dtype=torch.long)
+        pred = pred.fill_(self.pad_id).to(self.device)
+        pred[:, 0] = self.bos_id
+
+        e_mask = self.model.mask(input_ids)
+
+        ple_out = self.model.ple(
+            input_ids=input_ids, 
+            attention_mask=attention_mask
+        ).last_hidden_state
+        ple_out = self.model.mapping(ple_out)
+
+        memory = self.model.encode(input_ids, ple_out, e_mask)
+
+        for idx in range(1, self.max_len):
+            y = pred[:, :idx]
+            d_out = self.model.decoder(y, memory, ple_out, e_mask, None)
+            logit = self.model.generator(d_out)
+            pred[:, idx] = logit.argmax(dim=-1)[:, -1]
+
+            #Early Stop Condition
+            if (pred == self.eos_id).sum().item() == batch_size:
+                break
+
+        return pred
 
 
 
