@@ -1,6 +1,6 @@
 import copy, math, torch
 import torch.nn as nn
-from .components import clones
+from .components import clones, ModelBase
 
 
 

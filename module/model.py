@@ -5,13 +5,6 @@ from model import SimpleModel, ParallelModel, SequentialModel
 
 
 
-
-def init_weights(model):
-    for name, param in model.named_parameters():
-        if 'ple' not in name and 'weight' in name and 'norm' not in name:
-            nn.init.xavier_uniform_(param)
-
-
     
 def print_model_desc(model):
     #Number of trainerable parameters
@@ -34,6 +27,15 @@ def print_model_desc(model):
 
 
 
+
+def init_weights(model):
+    for name, param in model.named_parameters():
+        if 'ple' not in name and 'weight' in name and 'norm' not in name:
+            nn.init.xavier_uniform_(param)
+
+
+
+
 def load_ple(config):
     ple = AutoModel.from_pretrained(config.ple_name)
 
@@ -53,13 +55,15 @@ def load_ple(config):
         ple.embeddings.position_ids = torch.arange(max_len).expand((1, -1))
         ple.embeddings.token_type_ids = torch.zeros(max_len, dtype=torch.long).expand((1, -1))        
     
-    #Update config.emb_dim for process afterward
-    config.emb_dim = ple.config.embedding_size
+    #Update config.emb_dim attr
+    setattr(config, 'emb_dim', ple.config.embedding_size)
+    setattr(config, 'ple_hidden_dim', ple.config.hidden_size)
 
     for param in ple.parameters():
         param.requires_grad = False
 
     return ple
+
 
 
 

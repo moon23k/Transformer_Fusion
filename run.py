@@ -11,36 +11,35 @@ from module import (
 
 
 class Config(object):
-    def __init__(self, args):    
-
-        with open('config.yaml', 'r') as f:
-            params = yaml.load(f, Loader=yaml.FullLoader)
-            for group in params.keys():
-                for key, val in params[group].items():
-                    setattr(self, key, val)
-
-        self.task = args.task
-        self.mode = args.mode
+    def __init__(self, args, yaml_path='config.yaml'):
         
+        self._set_attrs_from_args(args)
+        self._set_params_from_yaml(yaml_path)
+
         self.max_len = self.max_len * 2 \
-                       if self.task == 'summarization' else self.max_len
-        
+                if self.task == 'summarization' else self.max_len
         self.mname = f'{args.fusion_type}_{args.fusion_part}' \
-                if args.fusion_type != 'simple' else f"{args.fusion_type}"        
+                if args.fusion_type != 'simple' else f"{args.fusion_type}"
         
-        self.search_method = args.search
         self.ckpt = f"ckpt/{self.task}/{self.mname}_model.pt"
         self.tokenizer_path = f'data/{self.task}/tokenizer.json'
+    
+    def _set_params_from_yaml(self, yaml_path):
+        with open(yaml_path, 'r') as f:
+            params = yaml.load(f, Loader=yaml.FullLoader)
 
-        use_cuda = torch.cuda.is_available()
-        device_condition = use_cuda and self.mode != 'inference'
-        self.device_type = 'cuda' if device_condition else 'cpu'
-        self.device = torch.device(self.device_type)
+        for group in params.values():
+            for key, val in group.items():
+                setattr(self, key, val)
 
+    def _set_attrs_from_args(self, args):
+        for key, val in vars(args).items():
+            setattr(self, key, val)
 
     def print_attr(self):
         for attribute, value in self.__dict__.items():
             print(f"* {attribute}: {value}")
+
 
 
 
@@ -55,6 +54,7 @@ def load_tokenizer(config):
     setattr(config, 'bos_id', tokenizer.cls_token_id)
     setattr(config, 'eos_id', tokenizer.sep_token_id)        
     return tokenizer
+
 
 
 
@@ -82,9 +82,10 @@ def main(args):
     
 
 
+
 if __name__ == '__main__':
+
     parser = argparse.ArgumentParser()
-    parser.add_argument('-task', required=True)
     parser.add_argument('-mode', required=True)
     parser.add_argument('-fusion_type', required=True)
     parser.add_argument('-fusion_part', default='encoder', required=False)
@@ -92,15 +93,12 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
 
-    assert args.task.lower() in ['translation', 'dialogue', 'summarization']
     assert args.mode.lower() in ['train', 'test', 'inference']
     assert args.fusion_type.lower() in ['simple', 'parallel', 'sequential']
     assert args.fusion_part.lower() in ['encoder', 'decoder', 'encoder_decoder']
     assert args.search.lower() in ['greedy', 'beam']
 
-    if args.mode == 'train':
-        os.makedirs(f"ckpt/{args.task}", exist_ok=True)
-    else:
+    if args.mode != 'train':
         mname = f'{args.fusion_type}_{args.fusion_part}' \
                 if args.fusion_type != 'simple' else f"{args.fusion_type}"
         assert os.path.exists(f'ckpt/{args.task}/{mname}_model.pt')    

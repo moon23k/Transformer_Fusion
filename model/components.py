@@ -10,7 +10,7 @@ from collections import namedtuple
 def clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
 
-
+    
 
 
 class PositionwiseFeedForward(nn.Module):
@@ -33,8 +33,36 @@ class PositionwiseFeedForward(nn.Module):
 
 
 
+class SublayerConnection(nn.Module):
+    def __init__(self, config):
+        super(SublayerConnection, self).__init__()
+        self.norm = nn.LayerNorm(config.hidden_dim)
+        self.dropout = nn.Dropout(config.dropout_ratio)
+
+    def forward(self, x, sublayer):
+        return x + self.dropout(sublayer(self.norm(x)))
+
+
+
+
+class LayerBase(nn.Module):
+    def __init__(self, config):
+        super(LayerBase, self).__init__()
+        
+        self.enc_fuse = 'enc' in config.fusion_part
+        self.dec_fuse = 'dec' in config.fusion_part
+
+        self.attn_params = {
+            'embed_dim': config.hidden_dim,
+            'num_heads': config.n_heads,
+            'batch_first': True
+        }
+
+
+
+
 class ModelBase(nn.Module):
-    def __init__(self, config, ple):
+    def __init__(self, config):
         super(ModelBase, self).__init__()
 
         #Attr Setup

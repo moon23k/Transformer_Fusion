@@ -1,37 +1,36 @@
 import torch
 import torch.nn as nn
-from .components import clones, PositionwiseFeedForward, ModelBase
+from .components import (
+    clones, LayerBase, ModelBase,
+    SublayerConnection,
+    PositionwiseFeedForward, 
+)
 
 
 
 
 
-class EncoderLayer(nn.Module):
+class EncoderLayer(LayerBase):
     def __init__(self, config):
-        super(EncoderLayer, self).__init__()
+        super(EncoderLayer, self).__init__(config)
 
         #Common Setups
-        attn_params = {'embed_dim': config.hidden_dim,
-                       'num_heads': config.n_heads,
-                       'batch_first': True}
-
-        self.self_attn = nn.MultiheadAttention(**attn_params)
+        self.self_attn = nn.MultiheadAttention(**self.attn_params)
         self.pff = PositionwiseFeedForward(config)
 
 
         #Setups for Parallel Fusion Process
-        self.fuse = 'enc' in config.fusion_part
-        if self.fuse:
-            self.ple_mapping = nn.Seqeuntial(
+        if self.enc_fuse:
+            self.ple_mapping = nn.Sequential(
                 nn.Linear(config.ple_hidden_dim, config.hidden_dim),
                 nn.Dropout(config.dropout_ratio)
             )
-            self.ple_attn = nn.MultiheadAttention(**attn_params)
+            self.ple_attn = nn.MultiheadAttention(**self.attn_params)
 
 
     def forward(self, x, ple_out, e_mask):
 
-        if self.fuse:
+        if self.enc_fuse:
             s_out = self.self_attn(x, key_padding_mask=e_mask)
             p_out = self.ple_attn(x, ple_out, key_padding_mask=e_mask)
             out = x + s_out * 0.5 + p_out * 0.5
@@ -44,34 +43,29 @@ class EncoderLayer(nn.Module):
 
 
 
-class DecoderLayer(nn.Module):
+class DecoderLayer(LayerBase):
     def __init__(self, config):
-        super(DecoderLayer, self).__init__()
+        super(DecoderLayer, self).__init__(config)
 
         #Common Setups
-        attn_params = {'embed_dim': config.hidden_dim,
-                       'num_heads': config.n_heads,
-                       'batch_first': True}
-
-        self.self_attn = nn.MultiheadAttention(**attn_params)
-        self.cross_attn = nn.MultiheadAttention(**attn_params)
+        self.self_attn = nn.MultiheadAttention(**self.attn_params)
+        self.cross_attn = nn.MultiheadAttention(**self.attn_params)
         self.pff = PositionwiseFeedForward(config)
 
         #Setups for Parallel Fusion Process
-        self.fuse = 'dec' in config.fusion_part
-        if self.fuse:
-            self.ple_mapping = nn.Seqeuntial(
+        if self.dec_fuse:
+            self.ple_mapping = nn.Sequential(
                 nn.Linear(config.ple_hidden_dim, config.hidden_dim),
                 nn.Dropout(config.dropout_ratio)
             )
-            self.ple_attn = nn.MultiheadAttention(**attn_params)
+            self.ple_attn = nn.MultiheadAttention(**self.attn_params)
 
 
 
 
     def forward(self, x, memory, ple_out, e_mask=None, d_mask=None):
         
-        if self.fuse:
+        if self.dec_fuse:
             m, p = memory, ple_out
 
             s_out = self.self_attn(x, attn_mask=d_mask)
@@ -161,7 +155,7 @@ class ParallelModel(ModelBase):
         y = self.ple.embeddings(y)
 
         #Actual Process
-        ple_out = self.ple(input_ids=x, attention_mask=attention_mask).last_hidden_state
+        ple_out = self.ple(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
         memory = self.encoder(x, ple_out if self.enc_fuse else None, e_mask)
         d_out = self.decoder(y, memory, ple_out if self.dec_fuse else None, e_mask, d_mask)
         logit = self.generator(d_out)
