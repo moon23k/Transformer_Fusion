@@ -11,30 +11,31 @@ from module import (
 
 
 class Config(object):
-    def __init__(self, args, yaml_path='config.yaml'):
+    def __init__(self, args):
         
-        self._set_attrs_from_args(args)
-        self._set_params_from_yaml(yaml_path)
+        with open('config.yaml', 'r') as f:
+            params = yaml.load(f, Loader=yaml.FullLoader)
+            for group in params.keys():
+                for key, val in params[group].items():
+                    setattr(self, key, val)
 
-        self.max_len = self.max_len * 2 \
-                if self.task == 'summarization' else self.max_len
+        self.mode = args.mode
+        self.fusion_type = args.fusion_type
+        self.fusion_part = args.fusion_part
+        self.search = args.search
+
+        self.enc_fuse = 'enc' in self.fusion_part
+        self.dec_fuse = 'dec' in self.fusion_part
         self.mname = f'{args.fusion_type}_{args.fusion_part}' \
                 if args.fusion_type != 'simple' else f"{args.fusion_type}"
-        
-        self.ckpt = f"ckpt/{self.task}/{self.mname}_model.pt"
-        self.tokenizer_path = f'data/{self.task}/tokenizer.json'
-    
-    def _set_params_from_yaml(self, yaml_path):
-        with open(yaml_path, 'r') as f:
-            params = yaml.load(f, Loader=yaml.FullLoader)
+        self.ckpt = f"ckpt/{self.mname}_model.pt"
 
-        for group in params.values():
-            for key, val in group.items():
-                setattr(self, key, val)
 
-    def _set_attrs_from_args(self, args):
-        for key, val in vars(args).items():
-            setattr(self, key, val)
+        use_cuda = torch.cuda.is_available()
+        device_condition = use_cuda and self.mode != 'inference'
+        self.device_type = 'cuda' if device_condition else 'cpu'
+        self.device = torch.device(self.device_type)    
+
 
     def print_attr(self):
         for attribute, value in self.__dict__.items():
@@ -66,13 +67,13 @@ def main(args):
 
 
     if config.mode == 'train':
-        train_dataloader = load_dataloader(config, tokenizer, 'train')
-        valid_dataloader = load_dataloader(config, tokenizer, 'valid')
+        train_dataloader = load_dataloader(tokenizer, 'train', config.batch_size)
+        valid_dataloader = load_dataloader(tokenizer, 'valid', config.batch_size)
         trainer = Trainer(config, model, train_dataloader, valid_dataloader)
         trainer.train()
     
     elif config.mode == 'test':
-        test_dataloader = load_dataloader(config, tokenizer, 'test')
+        test_dataloader = load_dataloader(tokenizer, 'test', config.batch_size)
         tester = Tester(config, model, tokenizer, test_dataloader)
         tester.test()    
     
@@ -101,6 +102,6 @@ if __name__ == '__main__':
     if args.mode != 'train':
         mname = f'{args.fusion_type}_{args.fusion_part}' \
                 if args.fusion_type != 'simple' else f"{args.fusion_type}"
-        assert os.path.exists(f'ckpt/{args.task}/{mname}_model.pt')    
+        assert os.path.exists(f'ckpt/{mname}_model.pt')    
 
     main(args)

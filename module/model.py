@@ -39,8 +39,8 @@ def init_weights(model):
 def load_ple(config):
     ple = AutoModel.from_pretrained(config.ple_name)
 
-    #Extend Max Position Embeddings
-    if config.task == 'summarization':
+    #Extend Max Position Embeddings if needed
+    if ple.config.max_position_embeddings < config.max_len:
         max_len = config.max_len
         embeddings = ple.embeddings
         ple_max_len = ple.config.max_position_embeddings

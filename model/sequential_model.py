@@ -17,6 +17,7 @@ class EncoderLayer(LayerBase):
         #Common Setups
         self.self_attn = nn.MultiheadAttention(**self.attn_params)
         self.pff = PositionwiseFeedForward(config)
+        self.sublayer = clones(SublayerConnection(config), 2)
 
 
         #Setups for Parallel Fusion Process
@@ -51,6 +52,8 @@ class DecoderLayer(LayerBase):
         self.self_attn = nn.MultiheadAttention(**self.attn_params)
         self.cross_attn = nn.MultiheadAttention(**self.attn_params)
         self.pff = PositionwiseFeedForward(config)
+        self.sublayer = clones(SublayerConnection(config), 3)
+
 
         #Setups for Parallel Fusion Process
         if self.dec_fuse:
@@ -135,9 +138,8 @@ class Decoder(nn.Module):
 
 class SequentialModel(ModelBase):
     def __init__(self, config, ple):
-        super(SequentialModel, self).__init__(config)
+        super(SequentialModel, self).__init__(config, ple)
 
-        self.ple = ple
         self.encoder = Encoder(config)
         self.decoder = Decoder(config)
         self.generator = nn.Linear(config.hidden_dim, self.vocab_size)
@@ -148,8 +150,7 @@ class SequentialModel(ModelBase):
         #Prerequisites
         x = input_ids
         y, label = self.shift_y(labels)
-        e_mask = self.pad_mask(x) 
-        d_mask = self.causal_mask(y)
+        e_mask, d_mask = self.pad_mask(x), self.causal_mask(y)
 
         #Embedding
         x = self.ple.embeddings(x)

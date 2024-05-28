@@ -45,38 +45,55 @@ class SublayerConnection(nn.Module):
 
 
 
+
 class LayerBase(nn.Module):
     def __init__(self, config):
         super(LayerBase, self).__init__()
         
-        self.enc_fuse = 'enc' in config.fusion_part
-        self.dec_fuse = 'dec' in config.fusion_part
-
         self.attn_params = {
             'embed_dim': config.hidden_dim,
             'num_heads': config.n_heads,
             'batch_first': True
         }
 
+        self.enc_fuse = config.enc_fuse
+        self.dec_fuse = config.dec_fuse
+
+        if self.enc_fuse or self.dec_fuse:
+            self.ple_attn = nn.MultiheadAttention(**self.attn_params)
+            self.norm1 = nn.LayerNorm(config.hidden_dim)
+            self.norm2 = nn.LayerNorm(config.hidden_dim)
+            self.dropout = nn.Dropout(config.dropout_ratio)
+
 
 
 
 class ModelBase(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, ple):
         super(ModelBase, self).__init__()
 
         #Attr Setup
         self.device = config.device
         self.pad_id = config.pad_id
         self.vocab_size = config.vocab_size
-        self.fusion_part = config.fusion_part
-        self.enc_fuse = 'enc' in config.fusion_part
-        self.dec_fuse = 'dec' in config.fusion_part
+        self.enc_fuse = config.enc_fuse
+        self.dec_fuse = config.dec_fuse
 
+        #Module Setup
+        self.ple = ple
+        self.ple_mapping = nn.Sequential(
+            nn.Linear(config.ple_hidden_dim, config.hidden_dim),
+            nn.Dropout(config.dropout_ratio)
+        )
 
         #Output Setup
         self.criterion = nn.CrossEntropyLoss()
         self.out = namedtuple('Out', 'logit loss')
+
+
+    def ple_project(self, input_ids, attention_mask):
+        out = self.ple(input_ids=input_ids, attention_mask=attention_mask)        
+        return self.ple_mapping(out.last_hidden_state)
 
 
     @staticmethod    

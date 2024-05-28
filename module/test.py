@@ -11,15 +11,13 @@ class Tester:
         self.tokenizer = tokenizer
         self.dataloader = test_dataloader
 
-        self.task = config.task
         self.pad_id = config.pad_id
         self.bos_id = config.bos_id
         self.eos_id = config.eos_id
         self.device = config.device
         self.max_len = config.max_len
         
-        self.metric_name = 'BLEU' if self.task == 'translation' else 'ROUGE'
-        self.metric_module = evaluate.load(self.metric_name.lower())
+        self.metric_module = evaluate.load('bleu')
         
 
 
@@ -44,7 +42,7 @@ class Tester:
 
                 score += self.evaluate(pred, labels)
 
-        txt = f"TEST Result on {self.task.upper()} with {self.mname.upper()} model"
+        txt = f"TEST Result on {self.mname.upper()} model"
         txt += f"\n-- Score: {round(score/len(self.dataloader), 2)}\n"
         print(txt)                
 
@@ -146,17 +144,9 @@ class Tester:
         if all(elem == '' for elem in pred):
             return 0.0
 
-        #For Transaltion Evaluation
-        if self.task == 'translation':
-            score = self.metric_module.compute(
-                predictions=pred, 
-                references =[[l] for l in label]
-            )['bleu']
-        #For Dialgue & Summarization Evaluation
-        else:
-            score = self.metric_module.compute(
-                predictions=pred, 
-                references =[[l] for l in label]
-            )['rouge2']
+        score = self.metric_module.compute(
+            predictions=pred, 
+            references =[[l] for l in label]
+        )['bleu']
 
         return score * 100        
