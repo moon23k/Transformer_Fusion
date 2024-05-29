@@ -19,6 +19,7 @@ class Config(object):
                 for key, val in params[group].items():
                     setattr(self, key, val)
 
+        self.task = args.task
         self.mode = args.mode
         self.fusion_type = args.fusion_type
         self.fusion_part = args.fusion_part
@@ -26,9 +27,10 @@ class Config(object):
 
         self.enc_fuse = 'enc' in self.fusion_part
         self.dec_fuse = 'dec' in self.fusion_part
+        self.max_len = self.max_len * 2 if 'sum' in self.task else self.max_len
         self.mname = f'{args.fusion_type}_{args.fusion_part}' \
                 if args.fusion_type != 'simple' else f"{args.fusion_type}"
-        self.ckpt = f"ckpt/{self.mname}_model.pt"
+        self.ckpt = f"ckpt/{self.task}/{self.mname}_model.pt"
 
 
         use_cuda = torch.cuda.is_available()
@@ -67,13 +69,13 @@ def main(args):
 
 
     if config.mode == 'train':
-        train_dataloader = load_dataloader(tokenizer, 'train', config.batch_size)
-        valid_dataloader = load_dataloader(tokenizer, 'valid', config.batch_size)
+        train_dataloader = load_dataloader(config, tokenizer, 'train')
+        valid_dataloader = load_dataloader(config, tokenizer, 'valid')
         trainer = Trainer(config, model, train_dataloader, valid_dataloader)
         trainer.train()
     
     elif config.mode == 'test':
-        test_dataloader = load_dataloader(tokenizer, 'test', config.batch_size)
+        test_dataloader = load_dataloader(config, tokenizer, 'test')
         tester = Tester(config, model, tokenizer, test_dataloader)
         tester.test()    
     
@@ -84,9 +86,11 @@ def main(args):
 
 
 
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
+    parser.add_argument('-task', required=True)
     parser.add_argument('-mode', required=True)
     parser.add_argument('-fusion_type', required=True)
     parser.add_argument('-fusion_part', default='encoder', required=False)
@@ -94,14 +98,19 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
 
+    assert args.task.lower() in ['translation', 'dialogue', 'summarization']
     assert args.mode.lower() in ['train', 'test', 'inference']
     assert args.fusion_type.lower() in ['simple', 'parallel', 'sequential']
     assert args.fusion_part.lower() in ['encoder', 'decoder', 'enc_dec']
     assert args.search.lower() in ['greedy', 'beam']
 
-    if args.mode != 'train':
+
+    if args.mode == 'train':
+        os.makedirs(f"ckpt/{args.task}", exist_ok=True)
+    else:
         mname = f'{args.fusion_type}_{args.fusion_part}' \
                 if args.fusion_type != 'simple' else f"{args.fusion_type}"
-        assert os.path.exists(f'ckpt/{mname}_model.pt')    
+        assert os.path.exists(f'ckpt/{args.task}/{mname}_model.pt')    
+
 
     main(args)

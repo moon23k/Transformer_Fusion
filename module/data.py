@@ -5,14 +5,14 @@ from torch.nn.utils.rnn import pad_sequence
 
 
 class Dataset(torch.utils.data.Dataset):
-    def __init__(self, split):
+    def __init__(self, task, split):
         super().__init__()
-        self.data = self.load_data(split)
+        self.data = self.load_data(task, split)
 
 
     @staticmethod
-    def load_data(split):
-        with open(f"data/{split}.json", 'r') as f:
+    def load_data(task, split):
+        with open(f"data/{task}/{split}.json", 'r') as f:
             data = json.load(f)
         return data
 
@@ -51,11 +51,11 @@ class Collator(object):
 
 
 
-def load_dataloader(tokenizer, split, batch_size):
+def load_dataloader(config, tokenizer, split):
 
     return DataLoader(
-        Dataset(split), 
-        batch_size=batch_size, 
+        Dataset(config.task, split), 
+        batch_size=config.batch_size, 
         shuffle=split == 'train',
         collate_fn=Collator(tokenizer),
         pin_memory=True,

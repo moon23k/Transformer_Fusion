@@ -10,8 +10,8 @@ class Tester:
         self.model = model
         self.tokenizer = tokenizer
         self.dataloader = test_dataloader
-        self.metric_module = evaluate.load('bleu')
 
+        self.task = config.task
         self.mname = config.mname
         self.pad_id = config.pad_id
         self.bos_id = config.bos_id
@@ -22,6 +22,9 @@ class Tester:
         self.enc_fuse = config.enc_fuse
         self.dec_fuse = config.dec_fuse
         self.fusion_type = config.fusion_type
+
+        metric_name = 'bleu' if self.task == 'translation' else 'rouge'
+        self.metric_module = evaluate.load(metric_name)
         
 
 
@@ -43,7 +46,7 @@ class Tester:
 
                 score += self.evaluate(pred, labels)
 
-        txt = f"TEST Result on {self.mname.upper()} model"
+        txt = f"{self.task.upper()} TEST Result on {self.mname.upper()} model"
         txt += f"\n-- Score: {round(score/len(self.dataloader), 2)}\n"
         print(txt)                
 
@@ -115,9 +118,15 @@ class Tester:
         if all(elem == '' for elem in pred):
             return 0.0
 
-        score = self.metric_module.compute(
-            predictions=pred, 
-            references =[[l] for l in label]
-        )['bleu']
+        if self.task == 'translation':
+            score = self.metric_module.compute(
+                predictions=pred, 
+                references =[[l] for l in label]
+            )['bleu']
+        else:
+            score = self.metric_module.compute(
+                predictions=pred, 
+                references =[[l] for l in label]
+            )['rouge2']
 
         return score * 100

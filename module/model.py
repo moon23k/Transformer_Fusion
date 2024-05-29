@@ -78,7 +78,7 @@ def load_model(config):
         model = SequentialModel(config, ple)
 
     init_weights(model)
-    print(f"Initialized {config.mname.upper()} model has loaded")
+    print(f"Initialized {config.mname.upper()} model for {config.task.upper()} has loaded")
     
     if config.mode != 'train':
         assert os.path.exists(config.ckpt)
