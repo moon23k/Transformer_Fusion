@@ -15,20 +15,46 @@ class EncoderLayer(LayerBase):
 
         self.self_attn = nn.MultiheadAttention(**self.attn_params)
         self.pff = PositionwiseFeedForward(config)
-        self.sublayer = clones(SublayerConnection(config), 2)
+        
+        if self.enc_fuse:
+            self.norm = nn.LayerNorm(config.hidden_dim)
+            self.dropout = nn.Dropout(config.dropout_ratio)
+            self.sublayer = SublayerConnection(config)
+        else:
+            self.sublayer = clones(SublayerConnection(config), 2)
 
 
     def forward(self, x, p_proj, e_mask):
 
         if self.enc_fuse:
-            s_out = self.self_attn(self.norm1(x), key_padding_mask=e_mask)
-            p_out = self.ple_attn(self.norm2(x), p_proj, key_padding_mask=e_mask)
-            p_out = self.ple_mapping(p_out)
-            out = x + self.dropout(s_out * 0.5 + p_out * 0.5)
-        else:
-            out = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, e_mask))
+            norm_x = self.norm(x)
+            
+            s_out = self.self_attn(
+                norm_x, norm_x, norm_x, 
+                key_padding_mask=e_mask, 
+                need_weights=False
+            )[0]
+
+            p_out = self.ple_attn(
+                norm_x, p_proj, p_proj, 
+                key_padding_mask=e_mask, 
+                need_weights=False
+            )[0]
+
+            x = x + self.dropout(s_out * 0.5 + p_out * 0.5)
+            return self.sublayer(x, self.pff)
         
-        return self.sublayer[1](out, self.pff)
+        else:
+            x = self.sublayer[0](
+                x, 
+                lambda x: self.self_attn(
+                    x, x, x, 
+                    key_padding_mask=e_mask, 
+                    need_weights=False
+                )[0]
+            )
+        
+            return self.sublayer[1](x, self.pff)
 
 
 
@@ -40,26 +66,54 @@ class DecoderLayer(LayerBase):
         self.self_attn = nn.MultiheadAttention(**self.attn_params)
         self.cross_attn = nn.MultiheadAttention(**self.attn_params)
         self.pff = PositionwiseFeedForward(config)
-        self.sublayer = clones(SublayerConnection(config), 3)
+
+        if self.dec_fuse:
+            self.norm = nn.LayerNorm(config.hidden_dim)
+            self.dropout = nn.Dropout(config.dropout_ratio)
+            self.sublayer = clones(SublayerConnection(config), 2)
+        else:
+            self.sublayer = clones(SublayerConnection(config), 3)
 
 
     def forward(self, x, memory, p_proj, e_mask=None, d_mask=None):
         
-        x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, d_mask))
+        x = self.sublayer[0](
+            x, 
+            lambda x: self.self_attn(
+                x, x, x, 
+                attn_mask=d_mask,
+                need_weights=False
+            )[0]
+        )
 
-        #x = self.sublayer[1](x, lambda x: self.src_attn(x, m, m, e_mask))
+        if self.dec_fuse:
+            norm_x = self.norm(x)
 
-        if self.dec_fuse: 
-            p_out = self.ple_attn(self.norm1(x), p_proj, key_padding_mask=e_mask)
-            
+            p_out = self.ple_attn(
+                norm_x, p_proj, p_proj, 
+                key_padding_mask=e_mask, 
+                need_weights=False
+            )[0]
 
-            c_out = self.cross_attn(self.norm2(x), memory, key_padding_mask=e_mask)
-            out = x + self.dropout(p_out * 0.5 + c_out * 0.5)
+            c_out = self.cross_attn(
+                norm_x, memory, memory, 
+                key_padding_mask=e_mask, 
+                need_weights=False
+            )[0]
 
-            return out + self.pff(out)
-        
+            x = x + self.dropout(p_out * 0.5 + c_out * 0.5)
+            return self.sublayer[1](x, lambda x: self.pff(x))
+
         else:
-            return
+            x = self.sublayer[1](
+                x, 
+                lambda x: self.cross_attn(
+                    x, memory, memory, 
+                    key_padding_mask=e_mask, 
+                    need_weights=False
+                )[0]
+            )
+            return self.sublayer[2](x, lambda x: self.pff(x))            
 
 
 
@@ -126,7 +180,7 @@ class ParallelModel(ModelBase):
 
     def forward(self, input_ids, attention_mask, labels):        
         #Prerequisites
-        x = input_ids, 
+        x = input_ids 
         y, label = self.shift_y(labels)
         e_mask, d_mask = self.pad_mask(x), self.causal_mask(y)
 

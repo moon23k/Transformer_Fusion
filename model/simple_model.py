@@ -59,7 +59,7 @@ class Decoder(nn.Module):
 
 class SimpleModel(ModelBase):
     def __init__(self, config, ple):
-        super(SimpleModel, self).__init__(config)
+        super(SimpleModel, self).__init__(config, ple)
 
         self.encoder = Encoder(config, ple)
         self.decoder = Decoder(config)

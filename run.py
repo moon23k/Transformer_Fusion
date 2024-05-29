@@ -96,7 +96,7 @@ if __name__ == '__main__':
 
     assert args.mode.lower() in ['train', 'test', 'inference']
     assert args.fusion_type.lower() in ['simple', 'parallel', 'sequential']
-    assert args.fusion_part.lower() in ['encoder', 'decoder', 'encoder_decoder']
+    assert args.fusion_part.lower() in ['encoder', 'decoder', 'enc_dec']
     assert args.search.lower() in ['greedy', 'beam']
 
     if args.mode != 'train':

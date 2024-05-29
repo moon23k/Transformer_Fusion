@@ -61,9 +61,7 @@ class LayerBase(nn.Module):
 
         if self.enc_fuse or self.dec_fuse:
             self.ple_attn = nn.MultiheadAttention(**self.attn_params)
-            self.norm1 = nn.LayerNorm(config.hidden_dim)
-            self.norm2 = nn.LayerNorm(config.hidden_dim)
-            self.dropout = nn.Dropout(config.dropout_ratio)
+
 
 
 
